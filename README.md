@@ -1,0 +1,19 @@
+# AlphaResearch
+
+The research agent for futs (named after AlphaGo): one LLM agent with tools that proposes models
+and ensembles for a futures symbol, while futs-infra trains, scores and gates them. It talks to
+futs-infra only through the research interface v1. The design, its layers and its origins
+(DOTA and SoM in futs) are in [`docs/design.md`](docs/design.md).
+
+## Run
+
+```bash
+pip install -e ".[dev]"                      # plus futs-infra>=0.2 for real campaigns
+python -m alpharesearch run --fake 0 --out runs/dry --policy surrogate --iters 3   # synthetic infra
+python -m alpharesearch run <campaign> --out runs/<name>                           # a real campaign
+pytest
+```
+
+`<campaign>` is the name futs-infra's owner launcher generated for an approved symbol/budget
+request. Rerun the same command to resume; the campaign's state lives in `--out`
+(`iters.jsonl`, `ledger.jsonl`, one workspace per round).

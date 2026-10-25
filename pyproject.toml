@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "alpharesearch"
+version = "0.1.0"
+description = "The research agent that searches futs-infra's model space (named after AlphaGo)"
+requires-python = ">=3.12"
+dependencies = ["numpy", "scipy", "scikit-learn"]
+
+[project.optional-dependencies]
+infra = ["futs-infra>=0.2"]       # research interface v1; pinned exactly per campaign by the owner
+dev = ["pytest", "ruff"]
+
+[tool.setuptools.packages.find]
+include = ["alpharesearch*"]
+
+[tool.setuptools.package-data]
+"alpharesearch.agent" = ["prompts/*.md"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "TID"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"futs_infra".msg = "only alpharesearch/infra/futs.py talks to futs-infra"
+"lib".msg = "futs-infra's internals are private; use futs_infra.api via infra/futs.py"
+"config".msg = "futs-infra's internals are private; use futs_infra.api via infra/futs.py"
+
+[tool.ruff.lint.per-file-ignores]
+"alpharesearch/infra/futs.py" = ["TID251"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
