@@ -9,8 +9,9 @@ import sys
 def sandbox(ws, script, args, lib=None, timeout=900):
     """(exit code, output) of the agent's `script` under bwrap."""
     env = sys.prefix
+    base = sys.base_prefix                              # a venv's bin/python links into its base env
     cmd = ["bwrap", "--ro-bind", "/usr", "/usr", "--ro-bind", "/lib", "/lib",
-           "--ro-bind", "/lib64", "/lib64", "--ro-bind", env, env, "--proc", "/proc",
+           "--ro-bind", "/lib64", "/lib64", "--ro-bind", base, base, "--ro-bind", env, env, "--proc", "/proc",
            "--dev", "/dev", "--tmpfs", "/tmp", "--unshare-all", "--die-with-parent",
            "--ro-bind", os.path.abspath(ws), "/ws",
            "--bind", os.path.abspath(os.path.join(ws, "work")), "/ws/work", "--chdir", "/ws"]
