@@ -57,7 +57,7 @@ class FutsInfra:
                            feature_set_rule=rs.feature_set_rule.model_dump() if rs.feature_set_rule else None,
                            universe=rs.universe, labels=list(rs.labels), fit_label=d.scoring_horizon,
                            notes={a: dict(v) for a, v in rs.notes.items()}, feature_set_defs=dict(rs.feature_set_defs),
-                           served=[dict(x) for x in rs.served])
+                           served=[dict(x) for x in getattr(rs, "served", ())])   # 1.0 infra has no `served`
 
     def budget(self):
         b = self._call(self.r.budget)
