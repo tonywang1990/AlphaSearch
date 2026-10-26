@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from alpharesearch.ensemble.moments import Stats, fit_weights, paired, paired_daily, score
+from alphasearch.ensemble.moments import Stats, fit_weights, paired, paired_daily, score
 
 SWAP_T = 2.0      # LU: unmargined swaps chosen on half the val days lost 0.06 on the other half
 

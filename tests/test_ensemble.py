@@ -1,9 +1,9 @@
 import numpy as np
 import pytest
 
-from alpharesearch.ensemble.moments import Stats, fit_weights, ic, paired, subset
-from alpharesearch.ensemble.select import Cfg, Selector
-from alpharesearch.infra.fake import FakeInfra
+from alphasearch.ensemble.moments import Stats, fit_weights, ic, paired, subset
+from alphasearch.ensemble.select import Cfg, Selector
+from alphasearch.infra.fake import FakeInfra
 
 
 @pytest.fixture(scope="module")

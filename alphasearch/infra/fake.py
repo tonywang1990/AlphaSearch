@@ -8,7 +8,7 @@ import hashlib
 
 import numpy as np
 
-from alpharesearch.infra.contract import (ApiError, Budget, Description, Model, Moments, Scored,
+from alphasearch.infra.contract import (ApiError, Budget, Description, Model, Moments, Scored,
                                           name_of)
 
 AXES = {"arch": ["tree", "linear", "gru"], "horizon": ["10s", "30s", "60s"],
@@ -62,7 +62,7 @@ class FakeInfra:
     def recipes(self, where=None):
         from itertools import product
 
-        from alpharesearch.search.surrogate import matches
+        from alphasearch.search.surrogate import matches
         out = [dict(zip(self.axes, v, strict=True)) for v in product(*self.axes.values())]
         return [r for r in out if self._legal(r) is None and name_of(r, self.axes) not in self.trained
                 and matches(r, where)]

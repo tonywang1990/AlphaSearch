@@ -6,7 +6,7 @@ import os
 
 import numpy as np
 
-from alpharesearch.search.surrogate import effects
+from alphasearch.search.surrogate import effects
 
 
 def record(out, name, policy, F, gains, coords, ledger, iters):

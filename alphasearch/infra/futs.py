@@ -1,10 +1,10 @@
 """The real adapter: `Infra` over futs-infra's public module `futs_infra.api` (interface v1).
-The only file in AlphaResearch that imports futs-infra; result models are mapped field for
+The only file in AlphaSearch that imports futs-infra; result models are mapped field for
 field (the v1 schemas use the contract's names), and every infra failure surfaces as the
 contract's `ApiError` with infra's own code."""
 import numpy as np
 
-from alpharesearch.infra.contract import (ApiError, Budget, Description, Model, Moments, Scored,
+from alphasearch.infra.contract import (ApiError, Budget, Description, Model, Moments, Scored,
                                           check_version, name_of)
 
 

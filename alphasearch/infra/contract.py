@@ -1,4 +1,4 @@
-"""What AlphaResearch needs from futs-infra: the research interface v1 (futs ADR
+"""What AlphaSearch needs from futs-infra: the research interface v1 (futs ADR
 `research-api-v1`), as the client sees it. Every other module codes against this file;
 only `infra/futs.py` (the real adapter) and `infra/fake.py` (tests, dry runs) implement it.
 

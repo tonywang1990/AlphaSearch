@@ -1,4 +1,4 @@
-"""AlphaResearch's campaign loop: one research agent with tools (DOTA ADR 0452), over futs-infra's
+"""AlphaSearch's campaign loop: one research agent with tools (DOTA ADR 0452), over futs-infra's
 research interface v1. Each round:
 
     select    F = the Frontier: greedy fill + gated swaps over the whole bank, from prod, on val
@@ -19,16 +19,16 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from alpharesearch.agent import experience
-from alpharesearch.agent.log import Log
-from alpharesearch.agent.plan import plan_agent, plan_baseline, realize
-from alpharesearch.agent.tools import accept_tools, serve
-from alpharesearch.agent.workspace import PROMPT, brief
-from alpharesearch.ensemble.diagnose import diagnose
-from alpharesearch.ensemble.moments import Stats, subset
-from alpharesearch.ensemble.select import SWAP_T, Cfg, Selector
-from alpharesearch.infra.contract import ApiError, check_version, name_of
-from alpharesearch.search.surrogate import Surrogate
+from alphasearch.agent import experience
+from alphasearch.agent.log import Log
+from alphasearch.agent.plan import plan_agent, plan_baseline, realize
+from alphasearch.agent.tools import accept_tools, serve
+from alphasearch.agent.workspace import PROMPT, brief
+from alphasearch.ensemble.diagnose import diagnose
+from alphasearch.ensemble.moments import Stats, subset
+from alphasearch.ensemble.select import SWAP_T, Cfg, Selector
+from alphasearch.infra.contract import ApiError, check_version, name_of
+from alphasearch.search.surrogate import Surrogate
 
 ENSEMBLE_T = 2.0   # the agent's own ensemble must beat the Frontier's pick at paired val t >= 2
 

@@ -14,7 +14,7 @@ import time
 
 import numpy as np
 
-from alpharesearch.search.surrogate import effects
+from alphasearch.search.surrogate import effects
 
 SOCK, CALLS, MAX_COLS = ".tool.sock", "tool_calls.jsonl", 300
 
@@ -134,7 +134,7 @@ def launcher(ws, lib):
     json.dump({"lib": lib}, open(os.path.join(ws, ".tool_meta.json"), "w"))
     path, root = os.path.join(ws, "tool"), os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     open(path, "w").write(f'#!/bin/sh\ncd "$(dirname "$0")" && PYTHONNOUSERSITE=1 PYTHONPATH={root} '
-                          f'exec {sys.executable} -m alpharesearch.agent.tools . "$@"\n')
+                          f'exec {sys.executable} -m alphasearch.agent.tools . "$@"\n')
     os.chmod(path, 0o755)
 
 

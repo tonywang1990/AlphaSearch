@@ -4,8 +4,8 @@ import subprocess
 
 import pytest
 
-from alpharesearch.agent import loop
-from alpharesearch.infra.fake import FakeInfra
+from alphasearch.agent import loop
+from alphasearch.infra.fake import FakeInfra
 
 
 def _rows(path):

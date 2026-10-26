@@ -1,14 +1,14 @@
-"""python -m alpharesearch run <campaign> --out DIR [options]
+"""python -m alphasearch run <campaign> --out DIR [options]
 
 <campaign> is the name futs-infra's owner launcher generated for this run (a symbol/budget
 request against an approved template); `--fake SEED` runs against the synthetic infra instead."""
 import argparse
 
-from alpharesearch.agent.loop import DEFAULTS, run
+from alphasearch.agent.loop import DEFAULTS, run
 
 
 def main(argv=None):
-    p = argparse.ArgumentParser(prog="python -m alpharesearch")
+    p = argparse.ArgumentParser(prog="python -m alphasearch")
     sub = p.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("run", help="run (or resume) a campaign")
     r.add_argument("campaign", nargs="?", help="the infra campaign name (omit with --fake)")
@@ -31,11 +31,11 @@ def main(argv=None):
     r.add_argument("--seed", type=int, default=0)
     a = p.parse_args(argv)
     if a.fake is not None:
-        from alpharesearch.infra.fake import FakeInfra
+        from alphasearch.infra.fake import FakeInfra
         infra = FakeInfra(seed=a.fake)
     else:
         assert a.campaign, "a campaign name, or --fake SEED"
-        from alpharesearch.infra.futs import FutsInfra
+        from alphasearch.infra.futs import FutsInfra
         infra = FutsInfra(a.campaign)
     cfg = {k: getattr(a, k) for k in ("select_objective", "swap_t", "split_val", "sur_target", "experience",
                                       "memory", "prompt", "model", "effort", "seed")}

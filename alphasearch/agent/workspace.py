@@ -7,7 +7,7 @@ import shutil
 
 import numpy as np
 
-from alpharesearch.agent.tools import launcher
+from alphasearch.agent.tools import launcher
 
 PROMPT = os.path.join(os.path.dirname(__file__), "prompts", "agent.md")
 
@@ -33,7 +33,7 @@ def _moments_npz(R, path):
     """moments.npz: each model's val IC per label and period, the val correlation matrix per
     period, the fit block (c_fit, S_fit), F and prod's legs: what `set_score.py` needs."""
     st, sel = R.tool_sel.val, R.tool_sel
-    from alpharesearch.ensemble.moments import solo_ic, undilute
+    from alphasearch.ensemble.moments import solo_ic, undilute
     m, P = st.m, len(st.m.periods)
     c_val = np.full((len(m.labels), P, len(st.names)), np.nan)
     S_val = np.zeros((P, len(st.names), len(st.names)))

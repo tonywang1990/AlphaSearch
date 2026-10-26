@@ -5,9 +5,9 @@ import time
 
 import numpy as np
 
-from alpharesearch.agent.llm import LLM, AgentError, json_block
-from alpharesearch.infra.contract import name_of
-from alpharesearch.search.surrogate import matches
+from alphasearch.agent.llm import LLM, AgentError, json_block
+from alphasearch.infra.contract import name_of
+from alphasearch.search.surrogate import matches
 
 TOOLS_AGENT = "Read,Grep,Glob,Write,Edit,Bash(./tool:*)"
 ACTIONS = ("train", "suggest", "ensemble", "feature_set")

@@ -3,7 +3,7 @@ val moments: F's IC next to the reference's, and the trained members with the la
 correlation to the label given F (what the fill did not take)."""
 import numpy as np
 
-from alpharesearch.ensemble.moments import ic
+from alphasearch.ensemble.moments import ic
 
 
 def pcorrs(c, S, jj, w, pool):

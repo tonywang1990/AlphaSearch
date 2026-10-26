@@ -1,13 +1,13 @@
-# AlphaResearch design
+# AlphaSearch design
 
-AlphaResearch is the research agent that searches futs-infra's model space for one symbol at a
+AlphaSearch is the research agent that searches futs-infra's model space for one symbol at a
 time. It is the one-agent DOTA loop (futs ADR 0452) plus the research half of SoM, rebuilt as
 its own repository over futs-infra's **research interface v1** (futs ADRs
 `research-api-v1` and `research-api-v1-infra`, on PR 409's separation).
 
 ## The split
 
-| futs-infra owns | AlphaResearch owns |
+| futs-infra owns | AlphaSearch owns |
 |---|---|
 | market data, stores, caches; recipe resolution and the grammar's laws | which experiments to run |
 | training, calibration, scoring, the fill model and fees | the loop, prompts, memory, ledger |
@@ -22,7 +22,7 @@ flat`; the final frame only through the owner's `evaluate`.
 ## Layers (one-way; `tests/test_layers.py` enforces them)
 
 ```
-alpharesearch/
+alphasearch/
   infra/      contract.py   the v1 interface as the client sees it (dataclasses + Protocol)
               futs.py       the real adapter: the ONLY import of futs-infra (futs_infra.api)
               fake.py       synthetic infra over generated ticks: tests and dry runs
@@ -57,6 +57,6 @@ touches futs-infra. A new agent design replaces `agent/` and keeps the rest.
 
 ## Status
 
-Runs end to end on `FakeInfra` (`python -m alpharesearch run --fake 0 --out runs/x --policy
+Runs end to end on `FakeInfra` (`python -m alphasearch run --fake 0 --out runs/x --policy
 surrogate`). The real adapter is written against the v1 contract; it needs futs-infra 0.2.0
 (the P1 build). P1's acceptance includes replaying a recorded PR 452 LU round through it.

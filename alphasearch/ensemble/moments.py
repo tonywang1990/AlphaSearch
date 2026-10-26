@@ -7,7 +7,7 @@ from dataclasses import replace
 
 import numpy as np
 
-from alpharesearch.infra.contract import Moments
+from alphasearch.infra.contract import Moments
 
 
 def undilute(S, Q):

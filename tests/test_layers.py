@@ -3,12 +3,12 @@ talks to futs-infra; ensemble/ and search/ are pure computation (no agent, no I/
 import ast
 import pathlib
 
-ROOT = pathlib.Path(__file__).resolve().parent.parent / "alpharesearch"
+ROOT = pathlib.Path(__file__).resolve().parent.parent / "alphasearch"
 ALLOWED = {
-    "infra": {"alpharesearch.infra", "alpharesearch.search.surrogate"},   # fake: the region matcher
-    "ensemble": {"alpharesearch.ensemble", "alpharesearch.infra.contract"},
-    "search": {"alpharesearch.search"},
-    "agent": {"alpharesearch.agent", "alpharesearch.ensemble", "alpharesearch.search", "alpharesearch.infra.contract"},
+    "infra": {"alphasearch.infra", "alphasearch.search.surrogate"},   # fake: the region matcher
+    "ensemble": {"alphasearch.ensemble", "alphasearch.infra.contract"},
+    "search": {"alphasearch.search"},
+    "agent": {"alphasearch.agent", "alphasearch.ensemble", "alphasearch.search", "alphasearch.infra.contract"},
 }
 
 
@@ -28,7 +28,7 @@ def test_layers():
             top = mod.split(".")[0]
             if top in ("futs_infra", "lib", "config") and path.name != "futs.py":
                 bad.append(f"{path.name}: {mod}")
-            if top == "alpharesearch" and layer in ALLOWED and mod != "alpharesearch" \
+            if top == "alphasearch" and layer in ALLOWED and mod != "alphasearch" \
                     and not any(mod == a or mod.startswith(a + ".") for a in ALLOWED[layer]):
                 bad.append(f"{layer}/{path.name}: {mod}")
     assert not bad, bad

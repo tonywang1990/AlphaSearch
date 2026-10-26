@@ -1,4 +1,4 @@
-# AlphaResearch
+# AlphaSearch
 
 The research agent for futs (named after AlphaGo): one LLM agent with tools that proposes models
 and ensembles for a futures symbol, while futs-infra trains, scores and gates them. It talks to
@@ -9,8 +9,8 @@ futs-infra only through the research interface v1. The design, its layers and it
 
 ```bash
 pip install -e ".[dev]"                      # plus futs-infra>=0.2 for real campaigns
-python -m alpharesearch run --fake 0 --out runs/dry --policy surrogate --iters 3   # synthetic infra
-python -m alpharesearch run <campaign> --out runs/<name>                           # a real campaign
+python -m alphasearch run --fake 0 --out runs/dry --policy surrogate --iters 3   # synthetic infra
+python -m alphasearch run <campaign> --out runs/<name>                           # a real campaign
 pytest
 ```
 

@@ -1,8 +1,8 @@
 # CLAUDE.md
 
-AlphaResearch: the research agent over futs-infra. Read `docs/design.md` before changing a layer.
+AlphaSearch: the research agent over futs-infra. Read `docs/design.md` before changing a layer.
 
-- **The seam is futs-infra's research interface v1.** `alpharesearch/infra/contract.py` is what
+- **The seam is futs-infra's research interface v1.** `alphasearch/infra/contract.py` is what
   the client may rely on; only `infra/futs.py` imports futs-infra (`futs_infra.api`), never its
   `lib`/`config` internals. A capability the contract lacks is a futs ADR + infra release, not a
   workaround here.
