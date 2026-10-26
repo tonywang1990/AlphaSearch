@@ -82,3 +82,13 @@ def test_frontier_chain_carries_the_bank_and_shows_it(tmp_path):
     assert list(m["labels"]) == ["10s", "30s", "60s"] and list(m["select_labels"]) == [0, 1, 2]
     assert bank["F_val_from_moments"] == pytest.approx(bank["F_val"], abs=1e-4)
     assert "Best final F on val" in open(os.path.join(store, "experience.md")).read()
+
+
+def test_memory_is_this_weeks_prod_on_the_other_symbols(tmp_path):
+    """No --memory: the campaign renders memory.md from what infra says prod serves, excluding its
+    own symbol, and every round's workspace carries that frozen copy."""
+    out = str(tmp_path / "m")
+    loop.run(FakeInfra(seed=6), {}, out, policy="surrogate", iters=1, models=4)
+    text = open(os.path.join(out, "it_0", "memory.md")).read()
+    assert "OTHER" in text and "som_other_2f0" in text and "before it hybrid" in text
+    assert "**FAKE**" not in text and "linear 1s y on agg_all" in text

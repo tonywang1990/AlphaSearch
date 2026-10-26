@@ -39,6 +39,7 @@ class Description:
     fit_label: str = "10s"                  # the label weights are fitted on and IC selects on
     notes: dict[str, dict[str, str]] = field(default_factory=dict)   # axis -> value -> what it means
     feature_set_defs: dict = field(default_factory=dict)             # how each feature set is composed
+    served: list[dict] = field(default_factory=list)  # what prod serves per slot this week (cross-symbol memory)
 
 
 @dataclass(frozen=True)

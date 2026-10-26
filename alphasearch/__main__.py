@@ -25,7 +25,10 @@ def main(argv=None):
     r.add_argument("--frontier", action="store_true", help="re-pick F from prod every round (else grow the last F)")
     r.add_argument("--sur-target", choices=["marginal", "best_swap"], default="marginal")
     r.add_argument("--experience", default=None, metavar="STORE", help="the per-symbol store of earlier campaigns")
-    r.add_argument("--memory", default=None, help="a memory.md of what won on other symbols")
+    r.add_argument("--memory", default=None, help="a fixed memory.md (default: rendered from what prod serves "
+                   "on the other symbols this week)")
+    r.add_argument("--memory-store", action="append", default=[], metavar="SYM=STORE",
+                   help="an experience store of AlphaSearch on another symbol, summarized into the memory")
     r.add_argument("--prompt", default=None, help="the agent's brief (default prompts/agent.md)")
     r.add_argument("--model", default=DEFAULTS["model"])
     r.add_argument("--effort", default=DEFAULTS["effort"])
@@ -38,8 +41,10 @@ def main(argv=None):
         assert a.campaign, "a campaign name, or --fake SEED"
         from alphasearch.infra.futs import FutsInfra
         infra = FutsInfra(a.campaign)
-    cfg = {k: getattr(a, k) for k in ("select_objective", "swap_t", "sur_target", "experience", "docs",
-                                      "memory", "prompt", "model", "effort", "seed", "frontier")}
+    stores = dict(x.split("=", 1) for x in a.memory_store)
+    keys = ("select_objective", "swap_t", "sur_target", "experience", "docs", "memory", "prompt", "model",
+            "effort", "seed", "frontier")
+    cfg = {"memory_stores": stores} | {k: getattr(a, k) for k in keys}
     print(run(infra, cfg, a.out, a.policy, a.iters, a.models))
 
 

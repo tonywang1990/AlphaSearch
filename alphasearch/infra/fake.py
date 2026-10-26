@@ -50,7 +50,15 @@ class FakeInfra:
                            axes=self.axes, objective="ic", k_max=self.k_max, reference=self.reference,
                            columns=list(self.columns), feature_sets={k: list(v) for k, v in self.feature_sets.items()},
                            feature_set_rule={"min_columns": 2, "max_columns": 200}, labels=list(self.labels),
-                           fit_label="10s", notes={"arch": {"gru": "a recurrent net on the book"}})
+                           fit_label="10s", notes={"arch": {"gru": "a recurrent net on the book"}},
+                           served=[{"slot": "fake", "symbol": "FAKE", "release": "prod_2", "model": "som_fake",
+                                    "since": "prod_2", "prev_model": None, "legs": []},
+                                   {"slot": "other", "symbol": "OTHER", "release": "prod_2", "model": "som_other_2f0",
+                                    "since": "prod_2", "prev_model": "hybrid", "legs": [
+                                        {"member": "linear.1s.y.agg_all.all.40d.hot.pooled.x1.s1", "kind": "linear",
+                                         "weight": 1.0, "recipe": {"arch": "linear", "horizon": "1s", "target": "y",
+                                                                   "feature_set": "agg_all", "feature_selection": "all",
+                                                                   "session": "pooled"}}]}])
 
     def budget(self):
         return Budget(seconds_left=1e9, verdicts_left=self.verdicts_left, deadline=None, max_parallel=4)

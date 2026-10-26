@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from alphasearch.agent import experience
+from alphasearch.agent import experience, memory
 from alphasearch.agent.log import Log
 from alphasearch.agent.plan import plan_agent, plan_baseline, realize
 from alphasearch.agent.tools import accept_tools, serve
@@ -34,7 +34,7 @@ ENSEMBLE_T = 2.0   # the agent's own ensemble must beat the Frontier's pick at p
 
 DEFAULTS = {"model": "claude-opus-5-5", "effort": "high", "select_objective": "ic", "swap_t": SWAP_T,
             "corrector_w": 0.5, "sur_target": "marginal", "experience": None, "memory": None,
-            "prompt": None, "seed": 0, "frontier": False, "docs": ()}
+            "prompt": None, "seed": 0, "frontier": False, "docs": (), "memory_stores": {}}
 
 
 @dataclass
@@ -108,6 +108,11 @@ def run(infra, cfg, out, policy="agent", iters=6, models=16):
     log, lib = Log(out), os.path.join(cfg["experience"] or out, "tools")   # tools outlive a campaign
     if not os.path.exists(os.path.join(out, "agent.md")):                 # the campaign's prompt, frozen
         shutil.copy(cfg["prompt"] or PROMPT, os.path.join(out, "agent.md"))
+    if not cfg["memory"] and desc.served:       # the cross-symbol memory, from this week's prod (frozen)
+        path = os.path.join(out, "memory.md")
+        if not os.path.exists(path):
+            open(path, "w").write(memory.render(desc.served, desc.symbol, cfg["memory_stores"]))
+        cfg = {**cfg, "memory": path}
     iters_path, ledger_path = os.path.join(out, "iters.jsonl"), os.path.join(out, "ledger.jsonl")
     done, ledger = _jsonl(iters_path), _jsonl(ledger_path)
     failed = {r for d in done for r in d.get("failed", [])}
