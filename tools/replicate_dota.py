@@ -72,8 +72,9 @@ def main():
     p.add_argument("--iters", type=int, default=6)
     p.add_argument("--models", type=int, default=16)
     p.add_argument("--extra", default="{}", help="JSON loop config (agent arms: prompt, memory, experience)")
+    p.add_argument("--name", default=None, help="the infra campaign (default replay/<ref>); a fresh run needs its own")
     a = p.parse_args()
-    name = f"replay/{Path(a.ref).name}"
+    name = a.name or f"replay/{Path(a.ref).name}"
     from lib.api.registration import identity
     if not (Path(os.environ["FUTS_CAMPAIGNS"]) / identity(name)).exists():
         subprocess.run([sys.executable, "-I", a.register, "register", "--snapshot", a.snapshot, "--name", name,

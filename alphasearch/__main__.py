@@ -1,4 +1,5 @@
 """python -m alphasearch run <campaign> --out DIR [options]
+python -m alphasearch view <campaign dir> [...] -o view.html
 
 <campaign> is the name futs-infra's owner launcher generated for this run (a symbol/budget
 request against an approved template); `--fake SEED` runs against the synthetic infra instead.
@@ -28,7 +29,14 @@ def main(argv=None):
             r.add_argument(flag, nargs="*", default=())
         else:
             r.add_argument(flag, type={int: int, float: float}.get(f.type, str), default=f.default)
+    v = sub.add_parser("view", help="write the session viewer for campaign directories")
+    v.add_argument("dirs", nargs="+")
+    v.add_argument("-o", "--out", default="view.html")
     a = p.parse_args(argv)
+    if a.cmd == "view":
+        from alphasearch.viewer import write
+        print(write(a.dirs, a.out))
+        return
     if a.fake is not None:
         from alphasearch.infra.fake import FakeInfra
         infra = FakeInfra(seed=a.fake)

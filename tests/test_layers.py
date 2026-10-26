@@ -12,6 +12,7 @@ ALLOWED = {        # a package -> the alphasearch modules it may import
     "infra": {"alphasearch.infra", "alphasearch.search.surrogate"},          # fake: the region matcher
     "tools": {"alphasearch.tools", "alphasearch.search", "alphasearch.runtime"},
     "context": {"alphasearch.context", "alphasearch.search", "alphasearch.tools.server"},
+    "viewer": {"alphasearch.viewer", "alphasearch.runtime"},                    # reads a campaign's files only
     "policies": {"alphasearch.policies", "alphasearch.records", "alphasearch.runtime", "alphasearch.tools.server"},
 }
 

@@ -8,9 +8,11 @@ is the whole algorithm (dota/docs/agent-search.md §2); each phase lives in `rou
 
 The fixed search picks F; the policy only decides what to train; infra trains and scores, and its
 test verdicts never reach the agent. State lives in files, so a rerun with the same `out` resumes."""
+import json
 import os
 import shutil
 import time
+from dataclasses import asdict
 
 import numpy as np
 
@@ -22,11 +24,14 @@ from alphasearch.policies import POLICIES
 from alphasearch.records import Journal
 from alphasearch.runtime.log import Log
 
+PHASES = ("observe", "workspace", "plan", "act", "evaluate", "reflect", "record")
+
 
 def _setup(infra, cfg, out, desc, log, journal):
     """(the memory.md path or None, what outlives a round)."""
     if not os.path.exists(os.path.join(out, "agent.md")):              # the campaign's brief, frozen
         shutil.copy(cfg.prompt or workspace.PROMPT, os.path.join(out, "agent.md"))
+        json.dump(asdict(cfg), open(os.path.join(out, "config.json"), "w"), indent=1)
     mem = cfg.memory
     if not mem and desc.served:           # the cross-symbol memory, from this week's prod (frozen)
         mem = os.path.join(out, "memory.md")
@@ -51,17 +56,26 @@ def run(infra, cfg, out):
     rng = np.random.default_rng(cfg.seed * 1000 + len(journal.iters))
     for it in range(len(journal.iters), cfg.rounds):
         t0 = time.time()
+        laps = [t0]                                     # each phase's end, for the session viewer
         start = desc.reference if cfg.frontier or not journal.iters else journal.iters[-1]["F_after"]
         obs = rnd.observe(infra, desc, cfg, it, out, list(start), carry)
+        laps.append(time.time())
         workspace.build(obs, journal=journal, budget={"iterations_left": cfg.rounds - it, "models_this_iteration":
                                                       cfg.models}, lib=lib, memory=mem,
                         diagnosis=diagnose(obs.sel, obs.F) if obs.sel.cfg.objective == "ic" else [])
+        laps.append(time.time())
         plan = policy.plan(obs, cfg.models, rng, log)
+        laps.append(time.time())
         a = rnd.act(obs, plan, policy, cfg.models, rng)
+        laps.append(time.time())
         o, desc = rnd.evaluate(obs, plan, a, log)
+        laps.append(time.time())
         tools = policy.reflect(obs, plan, lib, log)
+        laps.append(time.time())
         carry["recent"] = obs.recent
         row = rnd.record(journal, obs, plan, a, o, tools, policy, log, time.time() - t0)
+        laps.append(time.time())
+        log("phases", str(it), **{p: round(b - a, 1) for p, a, b in zip(PHASES, laps[:-1], laps[1:], strict=True)})
         if row["stop"] and not desc.universe:          # benchmark: the budget is fixed, unused is lost
             break
     if journal.iters and not os.path.exists(os.path.join(out, "episode.json")):
