@@ -28,28 +28,28 @@ def owner_scores(campaign):
     """{(frozenset child, frozenset parent): (child score, parent score)} from the verdict jobs."""
     from lib.api.registration import identity
     root = Path(os.environ["FUTS_CAMPAIGNS"]) / identity(campaign)
-    out = {}
+    out, one = {}, {}
     for job in (root / "jobs").glob("*/job.json"):
         rec = json.loads(job.read_text())
         meas = job.parent / "owner-measurement.json"
         if rec.get("operation") == "verdict" and meas.exists():
             m = json.loads(meas.read_text())
             pay = rec["payload"]
-            key = (frozenset(n for n, _ in pay["subject"]), frozenset(n for n, _ in pay["compare_to"]))
-            out[key] = (m["child"], m["parent"], m["verdict"])
-    return out
+            child, parent = (frozenset(n for n, _ in pay[k]) for k in ("subject", "compare_to"))
+            out[(child, parent)] = (m["child"], m["parent"], m["verdict"])
+            one[child], one[parent] = m["child"], m["parent"]   # a set's own score, whatever it was compared to
+    return out, one
 
 
 def compare(ref_dir, out, campaign, seed_suffix=".s1"):
     """Round-by-round rows: same F, same F', same trained set, and both test scores."""
-    ref, ours, scores = _rows(Path(ref_dir) / "iters.jsonl"), _rows(Path(out) / "iters.jsonl"), owner_scores(campaign)
+    ref, ours = _rows(Path(ref_dir) / "iters.jsonl"), _rows(Path(out) / "iters.jsonl")
+    scores, one = owner_scores(campaign)
     infra = lambda names: frozenset(n + seed_suffix for n in names)
     rows = []
     for a, b in zip(ref, ours, strict=False):
         key = (infra(b["F_after"]), infra(b["F"]))
-        child, parent, word = scores.get(key, (None, None, b["test_verdict"]))
-        if set(b["F_after"]) == set(b["F"]):
-            child = parent = rows[-1]["ours_after_test"] if rows else None
+        child, parent, word = scores.get(key, (one.get(key[0]), one.get(key[1]), b["test_verdict"]))
         rows.append(dict(
             iteration=a["iteration"], same_F={n + seed_suffix for n in b["F"]} == set(a["F"]),
             same_F_after={n + seed_suffix for n in b["F_after"]} == set(a["F_after"]),
