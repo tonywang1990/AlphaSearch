@@ -25,6 +25,7 @@ line-length = 120
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "TID"]
+ignore = ["E731"]          # small named lambdas are the house style (futs/DOTA)
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 "futs_infra".msg = "only alphasearch/infra/futs.py talks to futs-infra"
@@ -33,6 +34,7 @@ select = ["E", "F", "I", "B", "TID"]
 
 [tool.ruff.lint.per-file-ignores]
 "alphasearch/infra/futs.py" = ["TID251"]
+"tools/*" = ["TID251"]     # owner-run acceptance tools read the owner's job records
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

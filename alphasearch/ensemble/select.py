@@ -213,12 +213,12 @@ class Selector:
         f, Fj = self.scorer(), self.ix(F)
         base = f(Fj)
         others = [j for j, n in enumerate(self.names) if n != self.cfg.host and j not in Fj]
-        drop = f.many([[x for x in Fj if x != j] for j in Fj])
-        add = f.many([Fj + [j] for j in others])
-        out = {self.names[j]: base - v for j, v in zip(Fj, drop, strict=True) if self.names[j] != self.cfg.host}
-        out.update({self.names[j]: v - base for j, v in zip(others, add, strict=True)})
+        drop = dict(zip(Fj, f.many([[x for x in Fj if x != j] for j in Fj]), strict=True))
+        add = dict(zip(others, f.many([Fj + [j] for j in others]), strict=True))
         if target == "best_swap" and len(Fj) >= self.cfg.k_max:
             for j in others:
                 s = [x for x in f.many([Fj[:i] + Fj[i + 1:] + [j] for i in range(len(Fj))]) if np.isfinite(x)]
-                out[self.names[j]] = max(s) - base if s else float("nan")
-        return out
+                add[j] = max(s) if s else float("nan")
+        # in bank order: the surrogate's training rows follow it (DOTA's `learn`)
+        return {n: base - drop[j] if j in drop else add[j] - base
+                for j, n in enumerate(self.names) if n != self.cfg.host}

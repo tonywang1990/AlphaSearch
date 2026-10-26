@@ -50,6 +50,9 @@ def plan_baseline(R, policy, models, rng):
         pick = [names[j] for j in R.sur.thompson([R.untrained[n] for n in names], models, rng=rng)]
         return {"experiments": [{"id": "s", "action": "train", "recipes": pick,
                                  "hypothesis": "surrogate Thompson draws"}]}
+    if R.desc.feature_set_rule is None:                  # no grammar growth: the whole budget is recipes
+        return {"experiments": [{"id": "r1", "action": "train", "hypothesis": "random recipes",
+                                 "recipes": list(rng.choice(names, min(models, len(names)), replace=False))}]}
     exps = [{"id": "r1", "action": "train", "hypothesis": "random recipes",
              "recipes": list(rng.choice(names, min(models // 2, len(names)), replace=False))}]
     if R.feature_sets:
@@ -87,6 +90,8 @@ def realize(R, exp, left, rng):
         row["pool"] = len(pool)
         return ([pool[j] for j in R.sur.thompson([R.untrained[u] for u in pool], k, rng=rng)] if k else []), row
     # feature_set: screened against same-size random columns before anything trains
+    if R.desc.feature_set_rule is None:
+        return [], {"refused": "this campaign admits no new feature sets (a fixed universe)"}
     base = R.feature_sets.get(exp.get("base")) or []
     feats = [c for c in dict.fromkeys(exp.get("features") or []) if c not in set(base)]
     if not feats:

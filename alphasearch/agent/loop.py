@@ -34,7 +34,7 @@ ENSEMBLE_T = 2.0   # the agent's own ensemble must beat the Frontier's pick at p
 
 DEFAULTS = {"model": "claude-opus-5-5", "effort": "high", "select_objective": "ic", "swap_t": SWAP_T,
             "corrector_w": 0.5, "split_val": False, "sur_target": "marginal", "experience": None,
-            "memory": None, "prompt": None, "seed": 0}
+            "memory": None, "prompt": None, "seed": 0, "frontier": False}
 
 
 @dataclass
@@ -120,7 +120,9 @@ def run(infra, cfg, out, policy="agent", iters=6, models=16):
     for it in range(len(done), iters):
         t0 = time.time()
         sel, tsel = selectors(infra, desc, cfg)
-        F = sel.select([ref])                                 # the Frontier: fresh from prod every round
+        # frontier: F re-picked from prod every round; else grown from the last round's F
+        prev = ref if cfg["frontier"] or not done else done[-1]["F_after"]
+        F = sel.select([prev])
         gains = tsel.gains(F, cfg["sur_target"])
         coords = {m.name: m.recipe for m in infra.models()}
         R = Round(it=it, ws=os.path.join(out, f"it_{it}"), infra=infra, desc=desc, cfg=cfg, F=F, ref=ref,
@@ -153,7 +155,8 @@ def run(infra, cfg, out, policy="agent", iters=6, models=16):
                 "n_features": len(e.get("features") or []), "trained": p, **facts})
         if policy == "agent" and left > 0 and R.untrained:  # unspent budget: the surrogate spends it
             fill = [n for n in R.untrained if n not in {r for q in picks.values() for r in q}]
-            picks["_fill"] = [fill[j] for j in R.sur.thompson([R.untrained[n] for n in fill], min(left, len(fill)), rng=rng)]
+            draw = R.sur.thompson([R.untrained[n] for n in fill], min(left, len(fill)), rng=rng)
+            picks["_fill"] = [fill[j] for j in draw]
             rows.append({"iteration": it, "policy": policy, "id": "_fill", "action": "train", "n_features": 0,
                          "hypothesis": "unspent budget, surrogate Thompson draws", "trained": picks["_fill"]})
         allp = sorted({r for q in picks.values() for r in q})
@@ -163,7 +166,8 @@ def run(infra, cfg, out, policy="agent", iters=6, models=16):
         R.recent = sorted(set(allp) & have)
         desc = infra.describe()
         sel2, tsel2 = selectors(infra, desc, cfg)
-        new = sel2.select([ref])
+        start = ref if cfg["frontier"] else F
+        new = sel2.select([start])
         for e in exps:                                        # the agent's own ensemble, at its bar
             if e.get("action") == "ensemble":
                 prop = [m for m in dict.fromkeys(e.get("members") or []) if m in sel2.val.idx]
@@ -180,7 +184,7 @@ def run(infra, cfg, out, policy="agent", iters=6, models=16):
             if r.get("action") == "ensemble":
                 r.update({"adopted": e.get("_adopted"), "t_vs_selected": e.get("_t")})
             other = {m for k, q in picks.items() if k != r["id"] for m in q}
-            alone = sel2.select([ref], exclude=other)
+            alone = sel2.select([start], exclude=other)
             r.update({"failed": [m for m in r["trained"] if m not in have],
                       "entered_F": sorted(set(new) & set(r["trained"])),
                       "val_gain": tf2(tsel2.ix(alone)) - tf2(tsel2.ix(F)),

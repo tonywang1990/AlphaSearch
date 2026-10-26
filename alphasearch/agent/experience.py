@@ -71,7 +71,8 @@ def render(store):
            "| recipe | mean val gain | episodes | in a final F |", "|---|---|---|---|"]
     md += [f"| {n} | {g:+.5f} | {k} | {f} |" for g, k, f, n in rows[:30]]
     dead = [n for g, k, f, n in rows if k >= 2 and f == 0 and g <= 0]
-    md += ["", f"## Trained in 2+ episodes, never in a final F, gain <= 0 ({len(dead)})", "", ", ".join(dead[:40]) or "none"]
+    md += ["", f"## Trained in 2+ episodes, never in a final F, gain <= 0 ({len(dead)})", "",
+           ", ".join(dead[:40]) or "none"]
     cs = {n: c for e in eps for n, c in e.get("coords", {}).items()}
     axes = sorted({a for c in cs.values() for a in c})
     eff = effects({n: float(np.mean(r["gains"])) for n, r in rec.items()}, cs, axes)

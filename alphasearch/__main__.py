@@ -22,6 +22,7 @@ def main(argv=None):
     r.add_argument("--swap-t", type=float, default=DEFAULTS["swap_t"])
     r.add_argument("--split-val", action="store_true", help="the agent's tools see half the val days, "
                    "F is selected on the other half")
+    r.add_argument("--frontier", action="store_true", help="re-pick F from prod every round (else grow the last F)")
     r.add_argument("--sur-target", choices=["marginal", "best_swap"], default="marginal")
     r.add_argument("--experience", default=None, metavar="STORE", help="the per-symbol store of earlier campaigns")
     r.add_argument("--memory", default=None, help="a memory.md of what won on other symbols")
@@ -38,7 +39,7 @@ def main(argv=None):
         from alphasearch.infra.futs import FutsInfra
         infra = FutsInfra(a.campaign)
     cfg = {k: getattr(a, k) for k in ("select_objective", "swap_t", "split_val", "sur_target", "experience",
-                                      "memory", "prompt", "model", "effort", "seed")}
+                                      "memory", "prompt", "model", "effort", "seed", "frontier")}
     print(run(infra, cfg, a.out, a.policy, a.iters, a.models))
 
 

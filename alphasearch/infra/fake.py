@@ -8,8 +8,7 @@ import hashlib
 
 import numpy as np
 
-from alphasearch.infra.contract import (ApiError, Budget, Description, Model, Moments, Scored,
-                                          name_of)
+from alphasearch.infra.contract import ApiError, Budget, Description, Model, Moments, Scored, name_of
 
 AXES = {"arch": ["tree", "linear", "gru"], "horizon": ["10s", "30s", "60s"],
         "target": ["ret", "skip"], "feature_set": ["agg_a", "agg_b", "book"]}
@@ -47,7 +46,8 @@ class FakeInfra:
     def describe(self):
         return Description(api_version="1.0", campaign=f"fake/{self.seed}", symbol="FAKE",
                            axes=self.axes, objective="ic", k_max=self.k_max, reference=self.reference,
-                           columns=list(self.columns), feature_sets={k: list(v) for k, v in self.feature_sets.items()})
+                           columns=list(self.columns), feature_sets={k: list(v) for k, v in self.feature_sets.items()},
+                           feature_set_rule={"min_columns": 2, "max_columns": 200})
 
     def budget(self):
         return Budget(seconds_left=1e9, verdicts_left=self.verdicts_left, deadline=None, max_parallel=4)

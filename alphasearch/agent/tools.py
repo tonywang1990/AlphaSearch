@@ -66,7 +66,8 @@ def answer(R, cmd, args):
     if cmd in ("screen", "pcorr"):
         cols = R.columns
         if cmd == "screen":
-            want = json.load(open(os.path.join(R.ws, args[0]))) if len(args) == 1 and args[0].endswith(".json") else args
+            from_file = len(args) == 1 and args[0].endswith(".json")
+            want = json.load(open(os.path.join(R.ws, args[0]))) if from_file else args
             want = list(dict.fromkeys(want["features"] if isinstance(want, dict) else want))
         else:
             rx = re.compile(args[0]) if args else re.compile(".")

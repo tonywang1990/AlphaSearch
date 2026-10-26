@@ -33,6 +33,7 @@ class Description:
     host: str | None = None           # host mode: this member is in every ensemble at weight 1
     columns: list[str] = field(default_factory=list)          # store columns (screen / pcorr)
     feature_sets: dict[str, list[str]] = field(default_factory=dict)   # composed sets by name
+    feature_set_rule: dict | None = None    # None: the campaign admits no new feature sets
 
 
 @dataclass(frozen=True)
