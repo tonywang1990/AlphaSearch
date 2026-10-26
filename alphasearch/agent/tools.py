@@ -116,8 +116,9 @@ def sandbox(ws, script, args, lib=None, timeout=900):
     `work/`, /lib_tools the campaign's tool library; no network, no repo, no data beyond the
     workspace's summaries."""
     env = sys.prefix
+    base = sys.base_prefix                              # a venv's bin/python links into its base env
     cmd = ["bwrap", "--ro-bind", "/usr", "/usr", "--ro-bind", "/lib", "/lib",
-           "--ro-bind", "/lib64", "/lib64", "--ro-bind", env, env, "--proc", "/proc",
+           "--ro-bind", "/lib64", "/lib64", "--ro-bind", base, base, "--ro-bind", env, env, "--proc", "/proc",
            "--dev", "/dev", "--tmpfs", "/tmp", "--unshare-all", "--die-with-parent",
            "--ro-bind", os.path.abspath(ws), "/ws",
            "--bind", os.path.abspath(os.path.join(ws, "work")), "/ws/work", "--chdir", "/ws"]
