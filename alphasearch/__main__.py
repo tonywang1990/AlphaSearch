@@ -17,11 +17,11 @@ def main(argv=None):
     r.add_argument("--policy", choices=["agent", "surrogate", "random"], default="agent")
     r.add_argument("--iters", type=int, default=6)
     r.add_argument("--models", type=int, default=16, help="models trained per round")
-    r.add_argument("--select-objective", default="ic", help="F is selected in this (ic, or an infra "
-                   "objective such as ev_drift scored in batches); verdicts use the campaign's objective")
+    r.add_argument("--select-objective", default="ic", help="F is selected in this: ic (the fit label), "
+                   "ic_drift (the mean IC over every label infra carries) or an infra objective scored in "
+                   "batches; verdicts use the campaign's objective")
     r.add_argument("--swap-t", type=float, default=DEFAULTS["swap_t"])
-    r.add_argument("--split-val", action="store_true", help="the agent's tools see half the val days, "
-                   "F is selected on the other half")
+    r.add_argument("--docs", nargs="*", default=(), help="reference docs copied into every workspace")
     r.add_argument("--frontier", action="store_true", help="re-pick F from prod every round (else grow the last F)")
     r.add_argument("--sur-target", choices=["marginal", "best_swap"], default="marginal")
     r.add_argument("--experience", default=None, metavar="STORE", help="the per-symbol store of earlier campaigns")
@@ -38,7 +38,7 @@ def main(argv=None):
         assert a.campaign, "a campaign name, or --fake SEED"
         from alphasearch.infra.futs import FutsInfra
         infra = FutsInfra(a.campaign)
-    cfg = {k: getattr(a, k) for k in ("select_objective", "swap_t", "split_val", "sur_target", "experience",
+    cfg = {k: getattr(a, k) for k in ("select_objective", "swap_t", "sur_target", "experience", "docs",
                                       "memory", "prompt", "model", "effort", "seed", "frontier")}
     print(run(infra, cfg, a.out, a.policy, a.iters, a.models))
 

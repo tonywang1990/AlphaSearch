@@ -32,6 +32,8 @@ class FakeInfra:
         self.X = self.rng.standard_normal((len(self.unit), factors))
         beta = self.rng.normal(0.0, 1.0, (days, factors)) * 0.3 + np.linspace(1, 0.2, factors)
         self.y = (self.X * beta[self.day]).sum(1) + 3.0 * self.rng.standard_normal(len(self.unit))
+        self.labels = {"10s": self.y, "30s": self.y + 2.0 * self.rng.standard_normal(len(self.unit)),
+                       "60s": 0.5 * self.y + 3.0 * self.rng.standard_normal(len(self.unit))}
         self.columns = [f"x{i}" for i in range(factors)] + [f"noise{i}" for i in range(12)]
         self.store = np.hstack([self.X, self.rng.standard_normal((len(self.unit), 12))])
         self.feature_sets = {"agg_a": self.columns[:4], "agg_b": self.columns[4:8], "book": self.columns[2:6]}
@@ -47,7 +49,8 @@ class FakeInfra:
         return Description(api_version="1.0", campaign=f"fake/{self.seed}", symbol="FAKE",
                            axes=self.axes, objective="ic", k_max=self.k_max, reference=self.reference,
                            columns=list(self.columns), feature_sets={k: list(v) for k, v in self.feature_sets.items()},
-                           feature_set_rule={"min_columns": 2, "max_columns": 200})
+                           feature_set_rule={"min_columns": 2, "max_columns": 200}, labels=list(self.labels),
+                           fit_label="10s", notes={"arch": {"gru": "a recurrent net on the book"}})
 
     def budget(self):
         return Budget(seconds_left=1e9, verdicts_left=self.verdicts_left, deadline=None, max_parallel=4)
@@ -127,22 +130,25 @@ class FakeInfra:
             raise ApiError("not_permitted", f"moments on {block!r}")
         names, rows = sorted(self.trained), self._rows(block)
         Z, M = self._z(names, rows)
-        y, u = self.y[rows], self.unit[rows]
+        u = self.unit[rows]
         units = np.unique(u)
         K = len(names)
-        agg = {k: np.zeros((len(units), K)) for k in ("n", "sz", "szz", "sy", "syy", "szy")}
+        agg = {k: np.zeros((len(units), K)) for k in ("n", "sz", "szz")}
+        lab = [{k: np.zeros((len(units), K)) for k in ("sy", "syy", "szy")} for _ in self.labels]
         zz, zzm = np.zeros((len(units), K, K)), np.zeros((len(units), K, K))
         for i, x in enumerate(units):
             q = u == x
-            z, m, yy = Z[q], M[q], y[q]
+            z, m = Z[q], M[q]
             agg["n"][i], agg["sz"][i], agg["szz"][i] = m.sum(0), z.sum(0), (z * z).sum(0)
-            agg["sy"][i], agg["syy"][i], agg["szy"][i] = m.T @ yy, m.T @ (yy * yy), z.T @ yy
+            for y, L in zip(self.labels.values(), lab, strict=True):
+                yy = y[rows][q]
+                L["sy"][i], L["syy"][i], L["szy"][i] = m.T @ yy, m.T @ (yy * yy), z.T @ yy
             zz[i], zzm[i] = z.T @ z, (z * z).T @ m
         days = self.unit_day[units]
         return Moments(names=names, day=days, session=self.unit_session[units],
                        period=np.minimum((days - min(BLOCKS[block])) * 3 // len(BLOCKS[block]), 2),
                        periods=PERIODS, sessions=SESSIONS, n=agg["n"], sz=agg["sz"], szz=agg["szz"],
-                       zz=zz, zzm=zzm, labels=[{k: agg[k] for k in ("sy", "syy", "szy")}],
+                       zz=zz, zzm=zzm, labels=lab, label_names=list(self.labels),
                        reference=[(n, 1.0 / len(self.reference)) for n in self.reference])
 
     def _pred(self, legs, rows):

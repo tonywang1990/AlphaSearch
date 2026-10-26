@@ -25,7 +25,7 @@ from alphasearch.agent.plan import plan_agent, plan_baseline, realize
 from alphasearch.agent.tools import accept_tools, serve
 from alphasearch.agent.workspace import PROMPT, brief
 from alphasearch.ensemble.diagnose import diagnose
-from alphasearch.ensemble.moments import Stats, subset
+from alphasearch.ensemble.moments import Stats
 from alphasearch.ensemble.select import SWAP_T, Cfg, Selector
 from alphasearch.infra.contract import ApiError, check_version, name_of
 from alphasearch.search.surrogate import Surrogate
@@ -33,8 +33,8 @@ from alphasearch.search.surrogate import Surrogate
 ENSEMBLE_T = 2.0   # the agent's own ensemble must beat the Frontier's pick at paired val t >= 2
 
 DEFAULTS = {"model": "claude-opus-5-5", "effort": "high", "select_objective": "ic", "swap_t": SWAP_T,
-            "corrector_w": 0.5, "split_val": False, "sur_target": "marginal", "experience": None,
-            "memory": None, "prompt": None, "seed": 0, "frontier": False}
+            "corrector_w": 0.5, "sur_target": "marginal", "experience": None, "memory": None,
+            "prompt": None, "seed": 0, "frontier": False, "docs": ()}
 
 
 @dataclass
@@ -46,16 +46,21 @@ class Round:
     cfg: dict
     F: list
     ref: list
-    sel: Selector                 # the system's selection (the select half when split)
-    tool_sel: Selector            # what the agent's tools see (the explore half when split)
-    gains: dict
+    sel: Selector                 # the fixed selection; the agent's tools see the same val days
+    gains: dict                   # every trained member's marginal gain to F
+    swaps: dict                   # every non-member's best swap into F: (gain, the member it replaces)
+    F_score: float
     coords: dict
     sur: Surrogate
     feature_sets: dict
     failed: set
     recent: list = field(default_factory=list)
-    seen: set = field(default_factory=set)
+    seen: dict = field(default_factory=dict)
     untrained: dict = field(default_factory=dict)
+
+    @property
+    def tool_sel(self):
+        return self.sel
 
     @property
     def axes(self):
@@ -72,20 +77,13 @@ class Round:
 
 
 def selectors(infra, desc, cfg):
-    """(the selection's Selector, the tools' Selector): one and the same unless `split_val`, where
-    the agent's tools see alternate val days and F is chosen on the others (LU B5a0: F tuned on
-    the agent's days scored val 1.0735, test 1.0263)."""
-    val, fit = infra.moments("validation"), Stats(infra.moments("fit"))
+    """The fixed selection over the bank. `ic_drift` selects on the mean of the IC on every label
+    infra carries (10s/30s/60s on LU: against front-loading), weights fitted to the same target;
+    `ic` on the fit label alone; any other objective is scored by infra in batches."""
+    labels = desc.labels if cfg["select_objective"] == "ic_drift" else [desc.fit_label]
     scfg = Cfg(k_max=desc.k_max, host=desc.host, corrector_w=cfg["corrector_w"], swap_t=cfg["swap_t"],
-               objective=cfg["select_objective"])
-    if not cfg["split_val"]:
-        s = Selector(Stats(val), fit, scfg, infra)
-        return s, s
-    assert scfg.objective == "ic", "split_val needs the IC moment form"
-    st = Stats(val)
-    days = [st.days[h > 0] for h in st.halves()]
-    return (Selector(Stats(subset(val, days[1])), fit, scfg, infra),
-            Selector(Stats(subset(val, days[0])), fit, scfg, infra))
+               objective="ic" if cfg["select_objective"] in ("ic", "ic_drift") else cfg["select_objective"])
+    return Selector(Stats(infra.moments("validation"), labels), Stats(infra.moments("fit"), labels), scfg, infra)
 
 
 def _verdict(infra, sel, new, old, log):
@@ -114,26 +112,31 @@ def run(infra, cfg, out, policy="agent", iters=6, models=16):
     done, ledger = _jsonl(iters_path), _jsonl(ledger_path)
     failed = {r for d in done for r in d.get("failed", [])}
     feature_sets, ref = dict(desc.feature_sets), list(desc.reference)
-    seen = set(experience.recipes(experience.load(cfg["experience"])))
+    seen = experience.seen(cfg["experience"])
+    if cfg["frontier"] and cfg["experience"] and not done:   # the bank is everything this symbol ever
+        carry = [r for r in infra.recipes() if name_of(r, desc.axes) in seen]   # trained: free, uncounted
+        if carry:
+            infra.train(carry)
+            log("carry", f"{len(carry)} models every earlier episode trained")
     rng = np.random.default_rng(cfg["seed"] * 1000 + len(done))
     R = None
     for it in range(len(done), iters):
         t0 = time.time()
-        sel, tsel = selectors(infra, desc, cfg)
+        sel = selectors(infra, desc, cfg)
         # frontier: F re-picked from prod every round; else grown from the last round's F
         prev = ref if cfg["frontier"] or not done else done[-1]["F_after"]
         F = sel.select([prev])
-        gains = tsel.gains(F, cfg["sur_target"])
+        gains, swaps, base, y = sel.learn(F, cfg["sur_target"])
         coords = {m.name: m.recipe for m in infra.models()}
+        target = {n: y[n] for n in gains if np.isfinite(gains[n])}
         R = Round(it=it, ws=os.path.join(out, f"it_{it}"), infra=infra, desc=desc, cfg=cfg, F=F, ref=ref,
-                  sel=sel, tool_sel=tsel, gains=gains, coords=coords,
-                  sur=Surrogate(list(desc.axes), seed=it).fit(coords, gains), feature_sets=feature_sets,
+                  sel=sel, gains=gains, swaps=swaps, F_score=base, coords=coords,
+                  sur=Surrogate(list(desc.axes), seed=it).fit(coords, target), feature_sets=feature_sets,
                   failed=failed, recent=R.recent if R else [], seen=seen)
         R.refresh_recipes()
         os.makedirs(R.ws, exist_ok=True)
         budget = {"iterations_left": iters - it, "models_this_iteration": models}
-        brief(R, ledger, budget, diagnose(tsel, F) if tsel.cfg.objective == "ic" else [], lib,
-              cfg["experience"], cfg["memory"])
+        brief(R, ledger, budget, diagnose(sel, F) if sel.cfg.objective == "ic" else [], lib, seen)
         if policy == "agent":
             listener = serve(R, R.ws)
             try:
@@ -165,7 +168,7 @@ def run(infra, cfg, out, policy="agent", iters=6, models=16):
         have = {m.name for m in infra.models()}
         R.recent = sorted(set(allp) & have)
         desc = infra.describe()
-        sel2, tsel2 = selectors(infra, desc, cfg)
+        sel2 = selectors(infra, desc, cfg)
         start = ref if cfg["frontier"] else F
         new = sel2.select([start])
         for e in exps:                                        # the agent's own ensemble, at its bar
@@ -177,7 +180,7 @@ def run(infra, cfg, out, policy="agent", iters=6, models=16):
                 e["_adopted"] = bool(ok and se and g / se >= ENSEMBLE_T)
                 if e["_adopted"]:
                     new = prop
-        f2, tf2 = sel2.scorer(), tsel2.scorer()
+        f2 = sel2.scorer()
         verdict = _verdict(infra, sel2, new, F, log)
         for r in rows:                                        # each experiment alone
             e = next((x for x in exps if x.get("id") == r["id"]), {})
@@ -187,7 +190,7 @@ def run(infra, cfg, out, policy="agent", iters=6, models=16):
             alone = sel2.select([start], exclude=other)
             r.update({"failed": [m for m in r["trained"] if m not in have],
                       "entered_F": sorted(set(new) & set(r["trained"])),
-                      "val_gain": tf2(tsel2.ix(alone)) - tf2(tsel2.ix(F)),
+                      "val_gain": f2(sel2.ix(alone)) - f2(sel2.ix(F)),
                       "test_verdict": _verdict(infra, sel2, alone, F, log) if r["trained"] else "flat"})
         tools = accept_tools(R.ws, lib, plan.get("tools"), log) if policy == "agent" else []
         with open(ledger_path, "a") as fh:
@@ -203,13 +206,18 @@ def run(infra, cfg, out, policy="agent", iters=6, models=16):
         done.append(row)
         log("iteration", f"{it}: F val {row['F_val']:.4f} -> {row['F_after_val']:.4f}, test {verdict}, "
                          f"trained {len(allp)} ({len(bad)} failed)")
-        if row["stop"]:
+        if row["stop"] and not desc.universe:     # benchmark: the budget is fixed, unused is lost
             break
     if done and not os.path.exists(os.path.join(out, "episode.json")):
-        sel, tsel = selectors(infra, desc, cfg)
+        sel = selectors(infra, desc, cfg)
         F = done[-1]["F_after"]
-        ep = experience.record(out, os.path.basename(out.rstrip("/")), policy, F, tsel.gains(F),
-                               {m.name: m.recipe for m in infra.models()}, ledger, done)
+        kb = None
+        if cfg["experience"]:     # the best known set: from the final F and prod over every model trained
+            kF = sel.select([F, ref])
+            kb = {"F": kF, "val": round(float(sel.scorer()(sel.ix(kF))), 5), "pool": len(sel.names)}
+        ep = experience.record(out, os.path.basename(out.rstrip("/")), policy, F, sel.gains(F),
+                               {m.name: m.recipe for m in infra.models()}, ledger, done, objective=desc.objective,
+                               prompt=os.path.basename(cfg["prompt"] or PROMPT), known_best=kb)
         if cfg["experience"]:
             experience.add(cfg["experience"], ep)
     return out

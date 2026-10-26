@@ -34,6 +34,11 @@ class Description:
     columns: list[str] = field(default_factory=list)          # store columns (screen / pcorr)
     feature_sets: dict[str, list[str]] = field(default_factory=dict)   # composed sets by name
     feature_set_rule: dict | None = None    # None: the campaign admits no new feature sets
+    universe: bool = False                  # benchmark: training reveals pre-fitted models
+    labels: list[str] = field(default_factory=lambda: ["10s"])   # the horizons `moments` carries
+    fit_label: str = "10s"                  # the label weights are fitted on and IC selects on
+    notes: dict[str, dict[str, str]] = field(default_factory=dict)   # axis -> value -> what it means
+    feature_set_defs: dict = field(default_factory=dict)             # how each feature set is composed
 
 
 @dataclass(frozen=True)
@@ -56,7 +61,7 @@ class Moments:
     """Per (day, session) unit sums over one block, members in `names` order. With z a
     member's per-day standardized prediction, m its validity (0/1) and y a label:
     n, sz, szz: (U, K) = Σm, Σz, Σz²; zz: (U, K, K) = ZᵀZ; zzm: (U, K, K) = Σ z_i² m_j;
-    labels[l][k]: (U, K) for k in sy, syy, szy = Σm·y, Σm·y², Σz·y."""
+    labels[l][k]: (U, K) for k in sy, syy, szy = Σm·y, Σm·y², Σz·y, one per `label_names`."""
     names: list[str]
     day: np.ndarray                   # (U,) day index
     session: np.ndarray               # (U,) session index into `sessions`
@@ -70,6 +75,7 @@ class Moments:
     zzm: np.ndarray
     labels: list[dict[str, np.ndarray]]
     reference: list[tuple[str, float]]    # prod's legs (name, signed weight)
+    label_names: list[str] = field(default_factory=lambda: ["10s"])
 
 
 @dataclass(frozen=True)

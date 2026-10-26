@@ -14,7 +14,7 @@ import time
 
 import numpy as np
 
-from alphasearch.search.surrogate import effects
+from alphasearch.search.surrogate import axis_summary, effects
 
 SOCK, CALLS, MAX_COLS = ".tool.sock", "tool_calls.jsonl", 300
 
@@ -44,9 +44,10 @@ def answer(R, cmd, args):
         rows = sorted(((g, n) for n, g in R.gains.items() if not rx or rx.search(n)), reverse=True)
         return [{"member": n, "marginal_val_gain": round(float(g), 5), "in_F": n in F} for g, n in rows[:60]]
     if cmd == "effects":
-        return effects(R.gains, R.coords, list(R.axes))
+        return effects(R.gains, R.coords)
     if cmd == "axes":
-        return {a: t for a, t in effects(R.gains, R.coords, list(R.axes))["single"].items()}
+        done = [n for n in R.gains if n in R.coords]
+        return axis_summary([R.coords[n] for n in done], [R.gains[n] for n in done])
     if cmd == "suggest":
         n = int(_opt(args, "--n")[0]) if _opt(args, "--n") else 20
         want = _opt(args, "--set")

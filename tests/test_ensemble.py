@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from alphasearch.ensemble.moments import Stats, fit_weights, ic, paired, subset
+from alphasearch.ensemble.moments import Stats, fit_weights, ic, paired
 from alphasearch.ensemble.select import Cfg, Selector
 from alphasearch.infra.fake import FakeInfra
 
@@ -15,7 +15,7 @@ def infra():
 
 def test_moments_reproduce_pooled_pearson(infra):
     """The IC from moments is the Pearson IC on the pooled rows (members valid on every tick)."""
-    st = Stats(infra.moments("validation"))
+    st = Stats(infra.moments("validation"), ["10s"])
     names = [n for n in st.names if not n.startswith("gru")][:4]
     rows = infra._rows("validation")
     Z, _ = infra._z(names, rows)
@@ -28,13 +28,19 @@ def test_moments_reproduce_pooled_pearson(infra):
     assert ic(c, S, jj, w) == pytest.approx(np.corrcoef(Z @ w, y)[0, 1], abs=1e-9)
 
 
-def test_day_counts_are_day_subsets(infra):
-    m = infra.moments("validation")
-    st = Stats(m)
-    half = st.halves()[0]
-    sub = Stats(subset(m, st.days[half > 0]))
-    a, b = st.moments(half), sub.moments(sub.ones())
+def test_day_counts_reweight_units(infra):
+    """A day weight of 2 is the same day counted twice: the moments of a doubled day set match."""
+    st = Stats(infra.moments("validation"))
+    a, b = st.moments(st.ones()), st.moments(2 * st.ones())
     assert np.allclose(np.nan_to_num(a[0]), np.nan_to_num(b[0])) and np.allclose(a[1], b[1])
+
+
+def test_ic_drift_is_the_mean_over_labels(infra):
+    m = infra.moments("validation")
+    one, all_ = Stats(m, ["10s"]), Stats(m)
+    per = all_.label_ics(all_.ones())
+    assert np.allclose(np.nan_to_num(all_.moments(all_.ones())[0]), np.nan_to_num(np.mean(per, axis=0)))
+    assert np.allclose(np.nan_to_num(one.moments(one.ones())[0]), np.nan_to_num(per[0]))
 
 
 def test_selection_beats_prod_and_respects_k_max(infra):

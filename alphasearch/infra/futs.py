@@ -54,7 +54,9 @@ class FutsInfra:
                            objective=rs.metric, k_max=rs.k_max, reference=[by_id[i] for i, _ in rs.reference],
                            host=by_id.get(rs.host), columns=list(rs.columns),
                            feature_sets={k: list(v) for k, v in rs.feature_sets.items()},
-                           feature_set_rule=rs.feature_set_rule.model_dump() if rs.feature_set_rule else None)
+                           feature_set_rule=rs.feature_set_rule.model_dump() if rs.feature_set_rule else None,
+                           universe=rs.universe, labels=list(rs.labels), fit_label=d.scoring_horizon,
+                           notes={a: dict(v) for a, v in rs.notes.items()}, feature_set_defs=dict(rs.feature_set_defs))
 
     def budget(self):
         b = self._call(self.r.budget)
@@ -99,7 +101,8 @@ class FutsInfra:
         return Moments(names=names, day=a["day"], session=a["session"], period=a["period"],
                        periods=[str(p) for p in a["periods"]], sessions=[str(s) for s in a["sessions"]],
                        n=a["n"], sz=a["sz"], szz=a["szz"], zz=a["zz"], zzm=a["zzm"],
-                       labels=[{k: a[k] for k in ("sy", "syy", "szy")}],
+                       labels=[{k: a[k][i] for k in ("sy", "syy", "szy")} for i in range(len(a["labels"]))],
+                       label_names=[str(x) for x in a["labels"]],
                        reference=[(self._name[n], w) for n, w in self._moments["_ref"]])
 
     def score_many(self, sets, objective):

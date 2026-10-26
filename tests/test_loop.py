@@ -59,7 +59,26 @@ def test_agent_round_uses_tools_and_never_sees_test(tmp_path, monkeypatch):
     assert any("test_verdict" in r for r in led)
 
 
-def test_split_val_gives_the_agent_other_days(tmp_path):
-    infra = FakeInfra(seed=4)
-    sel, tsel = loop.selectors(infra, infra.describe(), {**loop.DEFAULTS, "split_val": True})
-    assert not set(sel.val.days) & set(tsel.val.days)
+def test_frontier_chain_carries_the_bank_and_shows_it(tmp_path):
+    """agent-search.md's configuration: ic_drift, no swap bar, frontier, best-swap surrogate, a
+    store across campaigns. Campaign 2 starts with every model campaign 1 trained (free), its
+    brief shows the whole bank, and the store names the best known set."""
+    import numpy as np
+    store = str(tmp_path / "store")
+    cfg = {"select_objective": "ic_drift", "swap_t": 0.0, "frontier": True, "sur_target": "best_swap",
+           "experience": store, "seed": 1}
+    first = FakeInfra(seed=5)
+    loop.run(first, cfg, str(tmp_path / "c1"), policy="surrogate", iters=2, models=6)
+    trained = {n for r in _rows(tmp_path / "c1" / "iters.jsonl") for n in r["trained"]}
+    second = FakeInfra(seed=5)
+    loop.run(second, cfg, str(tmp_path / "c2"), policy="surrogate", iters=1, models=6)
+    bank = json.load(open(tmp_path / "c2" / "it_0" / "bank.json"))
+    assert trained <= {r["model"] for r in bank["rows"]}                       # carried, free
+    assert len(_rows(tmp_path / "c2" / "iters.jsonl")[0]["trained"]) == 6        # the budget counts new ones
+    row = next(r for r in bank["rows"] if not r["in_F"])
+    assert {"ic_val", "corr_with_F", "pcorr_given_F", "best_swap_gain", "best_swap_out",
+            "in_earlier_final_F"} <= set(row)
+    m = np.load(tmp_path / "c2" / "it_0" / "moments.npz")
+    assert list(m["labels"]) == ["10s", "30s", "60s"] and list(m["select_labels"]) == [0, 1, 2]
+    assert bank["F_val_from_moments"] == pytest.approx(bank["F_val"], abs=1e-4)
+    assert "best known set" in open(os.path.join(store, "experience.md")).read()

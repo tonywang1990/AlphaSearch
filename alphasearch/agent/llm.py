@@ -14,6 +14,7 @@ import subprocess
 import time
 from dataclasses import dataclass
 
+
 class AgentError(Exception):
     pass
 

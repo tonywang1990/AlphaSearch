@@ -67,6 +67,7 @@ def main():
     p.add_argument("--out", required=True, help="where the replay's campaign directories go")
     p.add_argument("--register", default=None, help="the owner's register_universe_benchmark.py")
     p.add_argument("--reference", action="append", default=[])
+    p.add_argument("--ingredients", default=None, help="the grammar the universe was cut from (notes, set definitions)")
     p.add_argument("--iters", type=int, default=6)
     p.add_argument("--models", type=int, default=16)
     p.add_argument("--extra", default="{}", help="JSON loop config (agent arms: prompt, memory, experience)")
@@ -75,7 +76,8 @@ def main():
     from lib.api.registration import identity
     if not (Path(os.environ["FUTS_CAMPAIGNS"]) / identity(name)).exists():
         subprocess.run([sys.executable, "-I", a.register, "register", "--snapshot", a.snapshot, "--name", name,
-                        *[x for r in a.reference for x in ("--reference", r)]], check=True)
+                        *[x for r in a.reference for x in ("--reference", r)],
+                        *(["--ingredients", a.ingredients] if a.ingredients else [])], check=True)
     out = os.path.join(a.out, Path(a.ref).name)
     cfg = {"seed": a.seed, "select_objective": "ic", "swap_t": 2.0, "frontier": False, **json.loads(a.extra)}
     loop.run(FutsInfra(name), cfg, out, a.policy, a.iters, a.models)

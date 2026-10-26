@@ -6,6 +6,7 @@ the posterior samples: Thompson sampling draws one tree per pick."""
 import numpy as np
 
 PAIRS = (("arch", "horizon"), ("arch", "feature_set"), ("horizon", "target"), ("arch", "target"))
+SINGLE = ("arch", "horizon", "target", "feature_set", "feature_selection")
 
 
 def matches(coords, where):
@@ -77,7 +78,7 @@ class Surrogate:
                 "how": f"{halves} random halves of the trained models: fit on one, Spearman on the other"}
 
 
-def effects(gains, coords, axes, in_f=()):
+def effects(gains, coords, axes=SINGLE, in_f=()):
     """What each grammar value and value pair has paid: the mean gain of the trained members
     carrying it, its SE and n, best first."""
     rows = [(coords[n], g) for n, g in gains.items() if n in coords and n not in in_f and np.isfinite(g)]
@@ -92,3 +93,14 @@ def effects(gains, coords, axes, in_f=()):
         return sorted(out, key=lambda r: -r["mean"])
     return {"n_models": len(rows), "single": {a: table((a,)) for a in axes},
             "pairs": {f"{a}x{b}": table((a, b))[:12] for a, b in PAIRS if a in axes and b in axes}}
+
+
+def axis_summary(cs, gains):
+    """{axis: {value: [mean gain, n]}} over trained members: what each value has paid."""
+    out = {}
+    for c, g in zip(cs, gains, strict=True):
+        for a, v in c.items():
+            s = out.setdefault(a, {}).setdefault(v, [0.0, 0])
+            s[0], s[1] = s[0] + g, s[1] + 1
+    return {a: {v: [round(t / n, 5), n] for v, (t, n) in sorted(d.items(), key=lambda kv: -kv[1][0] / kv[1][1])}
+            for a, d in out.items()}

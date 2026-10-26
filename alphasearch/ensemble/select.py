@@ -24,11 +24,11 @@ class Cfg:
 
 class Selector:
     def __init__(self, val: Stats, fit: Stats, cfg: Cfg, infra=None):
-        self.val, self.cfg, self.infra = val, cfg, infra
+        self.val, self.fit, self.cfg, self.infra = val, fit, cfg, infra
         self.names = val.names
         cf, Sf = fit.moments(fit.ones())
-        order = [fit.idx[n] for n in self.names]
-        self.c_fit, self.S_fit = cf[order], Sf[np.ix_(order, order)]
+        self.fit_order = [fit.idx[n] for n in self.names]
+        self.c_fit, self.S_fit = cf[self.fit_order], Sf[np.ix_(self.fit_order, self.fit_order)]
         self._cache = {}
 
     # -- blends ---------------------------------------------------------------------------
@@ -207,18 +207,29 @@ class Selector:
                 "held_out_gain_of_searching": round(float(np.mean(held)), 5),
                 "held_out_folds": [round(float(x), 5) for x in held]}
 
-    def gains(self, F, target="marginal"):
-        """{member: its marginal gain to F} (a member of F: what dropping it loses); `target`
-        "best_swap": a non-member's best one-for-one swap into a full F."""
+    def learn(self, F, target="marginal"):
+        """(gains, swaps, F's score, the surrogate's target): every trained member's marginal gain to
+        F (a member: what dropping it loses) and each non-member's best one-for-one swap into F as
+        (gain, the member it replaces), in bank order (the surrogate's rows follow it: DOTA's
+        `learn`). The target is the gains, or with "best_swap" and a full F each non-member's best
+        swap: what decides entry once F is full."""
         f, Fj = self.scorer(), self.ix(F)
         base = f(Fj)
         others = [j for j, n in enumerate(self.names) if n != self.cfg.host and j not in Fj]
         drop = dict(zip(Fj, f.many([[x for x in Fj if x != j] for j in Fj]), strict=True))
         add = dict(zip(others, f.many([Fj + [j] for j in others]), strict=True))
+        gains = {n: base - drop[j] if j in drop else add[j] - base
+                 for j, n in enumerate(self.names) if n != self.cfg.host}
+        swaps = {}
+        for j in others:
+            ok = [(x, self.names[Fj[i]]) for i, x in enumerate(f.many([Fj[:i] + Fj[i + 1:] + [j]
+                                                                      for i in range(len(Fj))])) if np.isfinite(x)]
+            swaps[self.names[j]] = (max(ok)[0] - base, max(ok)[1]) if ok else (float("nan"), None)
+        y = gains
         if target == "best_swap" and len(Fj) >= self.cfg.k_max:
-            for j in others:
-                s = [x for x in f.many([Fj[:i] + Fj[i + 1:] + [j] for i in range(len(Fj))]) if np.isfinite(x)]
-                add[j] = max(s) if s else float("nan")
-        # in bank order: the surrogate's training rows follow it (DOTA's `learn`)
-        return {n: base - drop[j] if j in drop else add[j] - base
-                for j, n in enumerate(self.names) if n != self.cfg.host}
+            y = {n: g if n in F else swaps[n][0] for n, g in gains.items()}
+        return gains, swaps, base, y
+
+    def gains(self, F):
+        """{member: its marginal gain to F}, in bank order."""
+        return self.learn(F)[0]

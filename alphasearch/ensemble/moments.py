@@ -3,8 +3,6 @@
 The moments of ANY day subset (a period, a split half, a bootstrap resample with repeats) are
 a weighted sum of per-unit sums, so a blend's IC and its paired day-by-day test cost K x K
 algebra, never a pass over ticks. Day-level calls take `counts`, one weight per day."""
-from dataclasses import replace
-
 import numpy as np
 
 from alphasearch.infra.contract import Moments
@@ -48,19 +46,14 @@ def fit_weights(c, S):
     return w / np.abs(w).sum()
 
 
-def subset(m: Moments, days) -> Moments:
-    """`m` on the units of the given days only (split-val: the agent's half, the selection's)."""
-    q = np.isin(m.day, list(days))
-    return replace(m, day=m.day[q], session=m.session[q], period=m.period[q], n=m.n[q], sz=m.sz[q],
-                   szz=m.szz[q], zz=m.zz[q], zzm=m.zzm[q],
-                   labels=[{k: v[q] for k, v in L.items()} for L in m.labels])
-
-
 class Stats:
     """One block's moments, with the day structure the selection and its tests need."""
 
-    def __init__(self, m: Moments):
+    def __init__(self, m: Moments, labels=None):
+        """`labels`: the label names IC is the mean over (default: every label in `m`); one label
+        is IC, the 10s/30s/60s three are DOTA's `ic_drift`."""
         self.m, self.names = m, list(m.names)
+        self.L = [m.label_names.index(x) for x in labels] if labels else list(range(len(m.labels)))
         self.idx = {n: i for i, n in enumerate(self.names)}
         self.days, self.uday = np.unique(m.day, return_inverse=True)
         first = np.array([np.flatnonzero(self.uday == d)[0] for d in range(len(self.days))])
@@ -81,10 +74,17 @@ class Stats:
         norms = np.sqrt(szz)
         norms[norms == 0] = 1.0
         S = undilute(np.tensordot(u, m.zz, 1) / np.outer(norms, norms), np.tensordot(u, m.zzm, 1))
-        n, sz = u @ m.n, u @ m.sz
-        c = np.mean([solo_ic(n, sz, szz, u @ L["sy"], u @ L["syy"], u @ L["szy"]) for L in m.labels],
-                    axis=0)
+        c = np.mean([self.label_ics(counts, units)[i] for i in self.L], axis=0)
         return np.where(np.isfinite(c), c, np.nan), S
+
+    def label_ics(self, counts, units=None):
+        """Each label's solo IC vector over the weighted days."""
+        u = np.asarray(counts, float)[self.uday]
+        if units is not None:
+            u = np.where(units, u, 0.0)
+        m = self.m
+        n, sz, szz = u @ m.n, u @ m.sz, u @ m.szz
+        return [solo_ic(n, sz, szz, u @ L["sy"], u @ L["syy"], u @ L["szy"]) for L in m.labels]
 
     def ones(self):
         return np.ones(len(self.days))
