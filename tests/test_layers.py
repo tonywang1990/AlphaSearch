@@ -1,14 +1,18 @@
-"""The layering is one-way: infra.contract <- ensemble, search <- agent; only infra/futs.py
-talks to futs-infra; ensemble/ and search/ are pure computation (no agent, no I/O to infra)."""
+"""The layering is one-way. The fixed algorithms (ensemble/, search/) and the runtime (runtime/) know
+nothing of the harness; tools and context read the round, never drive it; policies return plans;
+only campaign.py, round.py and actions.py compose them. Only infra/futs.py talks to futs-infra."""
 import ast
 import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent / "alphasearch"
-ALLOWED = {
-    "infra": {"alphasearch.infra", "alphasearch.search.surrogate"},   # fake: the region matcher
+ALLOWED = {        # a package -> the alphasearch modules it may import
     "ensemble": {"alphasearch.ensemble", "alphasearch.infra.contract"},
     "search": {"alphasearch.search"},
-    "agent": {"alphasearch.agent", "alphasearch.ensemble", "alphasearch.search", "alphasearch.infra.contract"},
+    "runtime": {"alphasearch.runtime"},
+    "infra": {"alphasearch.infra", "alphasearch.search.surrogate"},          # fake: the region matcher
+    "tools": {"alphasearch.tools", "alphasearch.search", "alphasearch.runtime"},
+    "context": {"alphasearch.context", "alphasearch.search", "alphasearch.tools.server"},
+    "policies": {"alphasearch.policies", "alphasearch.records", "alphasearch.runtime", "alphasearch.tools.server"},
 }
 
 

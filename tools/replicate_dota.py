@@ -15,7 +15,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-from alphasearch.agent import loop
+from alphasearch import campaign
+from alphasearch.config import Config
 from alphasearch.infra.futs import FutsInfra
 
 
@@ -79,8 +80,9 @@ def main():
                         *[x for r in a.reference for x in ("--reference", r)],
                         *(["--ingredients", a.ingredients] if a.ingredients else [])], check=True)
     out = os.path.join(a.out, Path(a.ref).name)
-    cfg = {"seed": a.seed, "select_objective": "ic", "swap_t": 2.0, "frontier": False, **json.loads(a.extra)}
-    loop.run(FutsInfra(name), cfg, out, a.policy, a.iters, a.models)
+    cfg = Config(**{"policy": a.policy, "seed": a.seed, "rounds": a.iters, "models": a.models,
+                    "select_objective": "ic", "swap_t": 2.0, **json.loads(a.extra)})
+    campaign.run(FutsInfra(name), cfg, out)
     rows = compare(a.ref, out, name)
     json.dump(rows, open(os.path.join(out, "replication.json"), "w"), indent=1)
     for r in rows:
