@@ -62,7 +62,7 @@ def test_agent_round_uses_tools_and_never_sees_test(tmp_path, monkeypatch):
 def test_frontier_chain_carries_the_bank_and_shows_it(tmp_path):
     """agent-search.md's configuration: ic_drift, no swap bar, frontier, best-swap surrogate, a
     store across campaigns. Campaign 2 starts with every model campaign 1 trained (free), its
-    brief shows the whole bank, and the store names the best known set."""
+    brief shows the whole bank, and the store names the best final F."""
     import numpy as np
     store = str(tmp_path / "store")
     cfg = {"select_objective": "ic_drift", "swap_t": 0.0, "frontier": True, "sur_target": "best_swap",
@@ -81,4 +81,4 @@ def test_frontier_chain_carries_the_bank_and_shows_it(tmp_path):
     m = np.load(tmp_path / "c2" / "it_0" / "moments.npz")
     assert list(m["labels"]) == ["10s", "30s", "60s"] and list(m["select_labels"]) == [0, 1, 2]
     assert bank["F_val_from_moments"] == pytest.approx(bank["F_val"], abs=1e-4)
-    assert "best known set" in open(os.path.join(store, "experience.md")).read()
+    assert "Best final F on val" in open(os.path.join(store, "experience.md")).read()

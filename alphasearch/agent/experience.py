@@ -9,9 +9,8 @@ import numpy as np
 from alphasearch.search.surrogate import effects
 
 
-def record(out, name, policy, F, gains, coords, ledger, iters, objective=None, prompt=None, known_best=None):
-    """`out/episode.json`: the finished campaign, val-only. `known_best`: F selected over every
-    recipe this symbol's episodes trained (the frontier bank), with its val score and pool size."""
+def record(out, name, policy, F, gains, coords, ledger, iters, objective=None, prompt=None):
+    """`out/episode.json`: the finished campaign, val-only."""
     keys = ("action", "hypothesis", "where", "n", "trained", "entered_F", "val_gain", "adopted")
     ep = {"name": name, "policy": policy, "objective": objective, "prompt": prompt, "F": F,
           "trajectory": [{"models": sum(len(d["trained"]) for d in iters[:i + 1]), "F_val": d["F_after_val"]}
@@ -21,8 +20,6 @@ def record(out, name, policy, F, gains, coords, ledger, iters, objective=None, p
           "coords": {n: coords[n] for n in gains if n in coords},
           "experiments": [{k: r[k] for k in keys if k in r} for r in ledger if "action" in r],
           "lessons": [x for r in ledger for x in r.get("lessons") or []]}
-    if known_best is not None:
-        ep["known_best"] = known_best
     path = os.path.join(out, "episode.json")
     json.dump(ep, open(path, "w"), default=float)
     return path
@@ -83,14 +80,7 @@ def render(store):
         traj = " ".join(f"{t['models']}:{t['F_val']:.4f}" for t in e["trajectory"])
         md.append(f"| {e['name']} | {e['policy']} | start {e['F_start_val']:.4f}; {traj} | "
                   f"{', '.join(e['F'])} |")
-    kb = next((e["known_best"] for e in reversed(eps) if e.get("known_best")), None)
-    if kb:
-        md += ["", "## The best known set: rebuild this first", "",
-               f"F selected on val (from the prod members) over EVERY recipe your episodes trained "
-               f"({kb['pool']} models), after the latest episode: val {kb['val']:.4f}. It beats each "
-               "episode's own final F only when it draws on more good models than any one episode had:", "",
-               f"`{json.dumps(kb['F'])}`"]
-    elif eps:
+    if eps:
         best = max(eps, key=lambda e: e["trajectory"][-1]["F_val"] if e["trajectory"] else 0)
         md += ["", f"Best final F on val ({best['name']}): `{json.dumps(best['F'])}`"]
     rows = sorted(((float(np.mean(r["gains"])), len(r["gains"]), r["in_final_F"], n) for n, r in rec.items()),

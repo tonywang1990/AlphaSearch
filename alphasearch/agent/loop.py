@@ -211,13 +211,9 @@ def run(infra, cfg, out, policy="agent", iters=6, models=16):
     if done and not os.path.exists(os.path.join(out, "episode.json")):
         sel = selectors(infra, desc, cfg)
         F = done[-1]["F_after"]
-        kb = None
-        if cfg["experience"]:     # the best known set: from the final F and prod over every model trained
-            kF = sel.select([F, ref])
-            kb = {"F": kF, "val": round(float(sel.scorer()(sel.ix(kF))), 5), "pool": len(sel.names)}
         ep = experience.record(out, os.path.basename(out.rstrip("/")), policy, F, sel.gains(F),
                                {m.name: m.recipe for m in infra.models()}, ledger, done, objective=desc.objective,
-                               prompt=os.path.basename(cfg["prompt"] or PROMPT), known_best=kb)
+                               prompt=os.path.basename(cfg["prompt"] or PROMPT))
         if cfg["experience"]:
             experience.add(cfg["experience"], ep)
     return out
