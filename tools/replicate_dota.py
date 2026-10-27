@@ -73,13 +73,15 @@ def main():
     p.add_argument("--models", type=int, default=16)
     p.add_argument("--extra", default="{}", help="JSON loop config (agent arms: prompt, memory, experience)")
     p.add_argument("--name", default=None, help="the infra campaign (default replay/<ref>); a fresh run needs its own")
+    p.add_argument("--k-max", type=int, default=None, help="the registered ensemble size cap (default the owner script's, 12)")
     a = p.parse_args()
     name = a.name or f"replay/{Path(a.ref).name}"
     from lib.api.registration import identity
     if not (Path(os.environ["FUTS_CAMPAIGNS"]) / identity(name)).exists():
         subprocess.run([sys.executable, "-I", a.register, "register", "--snapshot", a.snapshot, "--name", name,
                         *[x for r in a.reference for x in ("--reference", r)],
-                        *(["--ingredients", a.ingredients] if a.ingredients else [])], check=True)
+                        *(["--ingredients", a.ingredients] if a.ingredients else []),
+                        *(["--k-max", str(a.k_max)] if a.k_max else [])], check=True)
     out = os.path.join(a.out, Path(a.ref).name)
     cfg = Config(**{"policy": a.policy, "seed": a.seed, "rounds": a.iters, "models": a.models,
                     "select_objective": "ic", "swap_t": 2.0, **json.loads(a.extra)})
