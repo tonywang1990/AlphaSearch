@@ -1,21 +1,12 @@
-"""The round's workspace: everything the agent reads, written fresh each round (a long campaign
-never depends on one long context). Read-only but `work/`, which the agent may write and run.
-Val-tier only: no test verdict, no row, no date appears in any file.
-
-The whole bank is in it (DOTA's `bankview`): `bank.json`, one row per trained model (its axes,
-IC per label and period, correlation with F, partial IC given F, marginal gain, best swap into F
-and whom it replaces, how often earlier final Fs held it), and `moments.npz`, the val moments
-behind every score, with `set_score.py` reproducing any set's val score from them."""
+"""The whole bank, for the agent (DOTA's `bankview`): `bank.json`, one row per trained model (its
+axes, IC per label and period, correlation with F, partial IC given F, marginal gain, best swap
+into F and whom it replaces, how often earlier final Fs held it), and `moments.npz`, the val
+moments behind every score, with `set_score.py` reproducing any set's val score from them."""
 import inspect
 import json
 import os
-import shutil
 
 import numpy as np
-
-from alphasearch.agent.tools import launcher
-
-PROMPT = os.path.join(os.path.dirname(__file__), "prompts", "agent.md")
 
 
 def set_score(m, idx, w, labels=None):
@@ -51,8 +42,8 @@ def _moments(sel, labels):
     return c_val, S_val, np.array(sel.fit.label_ics(sel.fit.ones()))[:, sel.fit_order], sel.S_fit
 
 
-def bankview(R, ws, seen):
-    sel, names = R.tool_sel, R.tool_sel.names
+def write(R, ws, seen):
+    sel, names = R.sel, R.sel.names
     idx = {n: i for i, n in enumerate(names)}
     labels = list(sel.val.m.label_names)
     c_val, S_val, c_fit, S_fit = _moments(sel, labels)
@@ -89,42 +80,3 @@ def bankview(R, ws, seen):
     json.dump({"F_val": round(float(R.F_score), 5),
                "F_val_from_moments": round(set_score(np.load(os.path.join(ws, "moments.npz")), Fj, Fw), 5),
                "rows": rows}, open(os.path.join(ws, "bank.json"), "w"), indent=0)
-
-
-def brief(R, ledger, budget, diag, lib, seen=None):
-    ws, cfg, sel = R.ws, R.cfg, R.tool_sel
-    os.makedirs(os.path.join(ws, "work"), exist_ok=True)
-    f = sel.scorer()
-    files = {
-        "state.json": {"iteration": R.it, "objective": R.desc.objective, "val_numbers_in": cfg["select_objective"],
-                       "swap_t": sel.cfg.swap_t, "k_max": sel.cfg.k_max, "budget": budget,
-                       "F": [{"member": n, "weight": round(float(x), 4)} for n, x in sel.legs(sel.ix(R.F))],
-                       "F_val": f(sel.ix(R.F)), "prod_val": f(sel.ix(R.ref)) if R.ref else None, "host": sel.cfg.host,
-                       "note": "scores are ratios to the prod reference (1.0 = prod) averaged over periods"
-                       if R.ref else f"scores are the raw {R.desc.objective}"},
-        "diagnosis.json": diag,
-        "grammar.json": R.desc.axes,
-        "grammar_notes.json": R.desc.notes,
-        "feature_sets.json": R.desc.feature_set_defs or R.feature_sets,
-        # the agent never sees a test verdict: steering by what held on test selects on the days
-        # the arms are compared on (the baselines never read them)
-        "ledger.json": [{k: v for k, v in r.items() if not k.startswith("test")} for r in ledger],
-        "bank_top.json": [{"member": n, "marginal_val_gain": round(float(g), 5)}
-                          for n, g in sorted(R.gains.items(), key=lambda kv: -kv[1])[:40]],
-    }
-    for name, obj in files.items():
-        json.dump(obj, open(os.path.join(ws, name), "w"), indent=1, default=float)
-    open(os.path.join(ws, "store_columns.txt"), "w").write("\n".join(R.columns) + "\n")
-    open(os.path.join(ws, "available.txt"), "w").write("\n".join(sorted(R.untrained)) + "\n")
-    if cfg.get("memory"):                       # what campaigns on OTHER symbols learned
-        shutil.copy(cfg["memory"], os.path.join(ws, "memory.md"))
-    for name in ("experience.md", "recipes.json"):  # this symbol's own earlier campaigns
-        if cfg.get("experience") and os.path.exists(os.path.join(cfg["experience"], name)):
-            shutil.copy(os.path.join(cfg["experience"], name), os.path.join(ws, name))
-    for doc in cfg.get("docs") or ():           # reference docs the brief names (taxonomy, dead ends)
-        shutil.copy(doc, os.path.join(ws, os.path.basename(doc)))
-    bankview(R, ws, seen)
-    if os.path.isdir(lib):
-        shutil.copytree(lib, os.path.join(ws, "lib"), dirs_exist_ok=True)
-    shutil.copy(os.path.join(ws, "..", "agent.md"), os.path.join(ws, "agent.md"))
-    launcher(ws, lib)

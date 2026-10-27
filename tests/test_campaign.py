@@ -4,8 +4,10 @@ import subprocess
 
 import pytest
 
-from alphasearch.agent import loop
+from alphasearch import campaign
+from alphasearch.config import Config
 from alphasearch.infra.fake import FakeInfra
+from alphasearch.policies import agent as agent_policy
 
 
 def _rows(path):
@@ -16,12 +18,12 @@ def _rows(path):
 def test_baseline_campaign_runs_and_resumes(tmp_path, policy):
     infra = FakeInfra(seed=2)
     out = str(tmp_path / "c")
-    loop.run(infra, {}, out, policy=policy, iters=2, models=6)
+    campaign.run(infra, Config(policy=policy, rounds=2, models=6), out)
     it = _rows(os.path.join(out, "iters.jsonl"))
     assert [r["iteration"] for r in it] == [0, 1]
     assert all(r["test_verdict"] in ("better", "worse", "flat", "not_scored") for r in it)
     assert it[0]["bank"] > 2 and os.path.exists(os.path.join(out, "episode.json"))
-    loop.run(infra, {}, out, policy=policy, iters=2, models=6)          # resume: nothing reruns
+    campaign.run(infra, Config(policy=policy, rounds=2, models=6), out)   # resume: nothing reruns
     assert len(_rows(os.path.join(out, "iters.jsonl"))) == 2
 
 
@@ -47,10 +49,10 @@ def test_agent_round_uses_tools_and_never_sees_test(tmp_path, monkeypatch):
              "features": ["x5", "x6", "x7"], "twins": R.F[:1], "k": 2},
             {"id": "e3", "action": "ensemble", "hypothesis": "h", "members": R.F}],
             "lessons": ["l"], "stop": False}
-    monkeypatch.setattr(loop, "plan_agent", scripted)
+    monkeypatch.setattr(agent_policy, "session", scripted)
     infra = FakeInfra(seed=3)
     out = str(tmp_path / "a")
-    loop.run(infra, {}, out, policy="agent", iters=2, models=6)
+    campaign.run(infra, Config(policy="agent", rounds=2, models=6), out)
     assert seen["members"] and "val_gain" in seen["whatif"] and "latest_models_value" in seen["crossval"]
     assert "beats_null" in seen["screen"]["all"]
     assert seen["ledger"] and not any(k.startswith("test") for r in seen["ledger"] for k in r)
@@ -65,13 +67,13 @@ def test_frontier_chain_carries_the_bank_and_shows_it(tmp_path):
     brief shows the whole bank, and the store names the best final F."""
     import numpy as np
     store = str(tmp_path / "store")
-    cfg = {"select_objective": "ic_drift", "swap_t": 0.0, "frontier": True, "sur_target": "best_swap",
-           "experience": store, "seed": 1}
+    cfg = Config(policy="surrogate", select_objective="ic_drift", swap_t=0.0, frontier=True,
+                 sur_target="best_swap", experience=store, seed=1, models=6)
     first = FakeInfra(seed=5)
-    loop.run(first, cfg, str(tmp_path / "c1"), policy="surrogate", iters=2, models=6)
+    campaign.run(first, Config(**{**cfg.__dict__, "rounds": 2}), str(tmp_path / "c1"))
     trained = {n for r in _rows(tmp_path / "c1" / "iters.jsonl") for n in r["trained"]}
     second = FakeInfra(seed=5)
-    loop.run(second, cfg, str(tmp_path / "c2"), policy="surrogate", iters=1, models=6)
+    campaign.run(second, Config(**{**cfg.__dict__, "rounds": 1}), str(tmp_path / "c2"))
     bank = json.load(open(tmp_path / "c2" / "it_0" / "bank.json"))
     assert trained <= {r["model"] for r in bank["rows"]}                       # carried, free
     assert len(_rows(tmp_path / "c2" / "iters.jsonl")[0]["trained"]) == 6        # the budget counts new ones
@@ -88,7 +90,7 @@ def test_memory_is_this_weeks_prod_on_the_other_symbols(tmp_path):
     """No --memory: the campaign renders memory.md from what infra says prod serves, excluding its
     own symbol, and every round's workspace carries that frozen copy."""
     out = str(tmp_path / "m")
-    loop.run(FakeInfra(seed=6), {}, out, policy="surrogate", iters=1, models=4)
+    campaign.run(FakeInfra(seed=6), Config(policy="surrogate", rounds=1, models=4), out)
     text = open(os.path.join(out, "it_0", "memory.md")).read()
     assert "OTHER" in text and "som_other_2f0" in text and "before it hybrid" in text
     assert "**FAKE**" not in text and "linear 1s y on agg_all" in text

@@ -9,11 +9,13 @@ futs-infra only through the research interface v1. The design, its layers and it
 
 ```bash
 pip install -e ".[dev]"                      # plus futs-infra>=0.2 for real campaigns
-python -m alphasearch run --fake 0 --out runs/dry --policy surrogate --iters 3   # synthetic infra
+python -m alphasearch run --fake 0 --out runs/dry --policy surrogate --rounds 3  # synthetic infra
 python -m alphasearch run <campaign> --out runs/<name>                           # a real campaign
 pytest
 ```
 
 `<campaign>` is the name futs-infra's owner launcher generated for an approved symbol/budget
 request. Rerun the same command to resume; the campaign's state lives in `--out`
-(`iters.jsonl`, `ledger.jsonl`, one workspace per round).
+(`iters.jsonl`, `ledger.jsonl`, one workspace per round). Every option is a field of
+`alphasearch/config.py`. How the harness is laid out, and where to make a change (a tool, a
+policy, context, an action, memory), is in `docs/design.md`.
