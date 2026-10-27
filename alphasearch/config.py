@@ -19,6 +19,8 @@ class Config:
     frontier: bool = False                 # re-pick F from prod over the whole bank every round (§10.5)
     sur_target: str = "marginal"           # marginal | best_swap (what the surrogate learns: §10.7)
     corrector_w: float = 0.5               # host mode: every non-host member's fixed weight
+    weights_block: str = "fit"             # fit | validation: the block ensemble weights are fitted on
+    report: bool = False                   # every round, the gate's Table 1 of F' on the held-out test block
     # the agent
     prompt: str | None = None              # the brief (default prompts/agent.md, brief v15)
     model: str = "claude-opus-5-5"
@@ -32,3 +34,4 @@ class Config:
     def __post_init__(self):
         assert self.policy in ("agent", "surrogate", "random"), self.policy
         assert self.sur_target in ("marginal", "best_swap"), self.sur_target
+        assert self.weights_block in ("fit", "validation"), self.weights_block

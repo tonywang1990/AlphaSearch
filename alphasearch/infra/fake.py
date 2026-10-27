@@ -50,7 +50,7 @@ class FakeInfra:
                            axes=self.axes, objective="ic", k_max=self.k_max, reference=self.reference,
                            columns=list(self.columns), feature_sets={k: list(v) for k, v in self.feature_sets.items()},
                            feature_set_rule={"min_columns": 2, "max_columns": 200}, labels=list(self.labels),
-                           fit_label="10s", notes={"arch": {"gru": "a recurrent net on the book"}},
+                           fit_label="10s", notes={"arch": {"gru": "a recurrent net on the book"}}, report=True,
                            served=[{"slot": "fake", "symbol": "FAKE", "release": "prod_2", "model": "som_fake",
                                     "since": "prod_2", "prev_model": None, "legs": []},
                                    {"slot": "other", "symbol": "OTHER", "release": "prod_2", "model": "som_other_2f0",
@@ -191,6 +191,22 @@ class FakeInfra:
         d = np.array([a[k] - b[k] for k in a])
         t = d.mean() / (d.std(ddof=1) / np.sqrt(len(d))) if d.std() > 0 else 0.0
         return "better" if t >= self.verdict_t else "worse" if t <= -self.verdict_t else "flat"
+
+    def test_report(self, subject, compare_to=None):
+        """Table 1's shape on the test block: per period and session the set's IC and a stand-in EVf."""
+        def table(legs):
+            rows = self._rows("test")
+            p, y = self._pred(legs, rows), self.y[rows]
+            per = np.minimum((self.day[rows] - min(BLOCKS["test"])) * 3 // len(BLOCKS["test"]), 2)
+            out = {}
+            for k, period in enumerate(PERIODS):
+                out[period] = {}
+                for s, session in enumerate(("day", "night")):
+                    m = (per == k) & (np.arange(len(p)) % 2 == s)
+                    ic = float(np.corrcoef(p[m], y[m])[0, 1]) if m.sum() > 2 else None
+                    out[period][session] = {"IC@10s": ic, "EVf@10s": None if ic is None else 10 * ic}
+            return out
+        return {"subject": table(subject), "compare_to": table(compare_to or [(r, 1.0) for r in self.reference])}
 
     def _resid(self, parent, rows):
         p = self._pred(parent, rows)

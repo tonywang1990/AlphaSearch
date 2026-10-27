@@ -63,7 +63,9 @@ def selector(infra, desc, cfg):
     labels = desc.labels if cfg.select_objective == "ic_drift" else [desc.fit_label]
     scfg = Cfg(k_max=desc.k_max, host=desc.host, corrector_w=cfg.corrector_w, swap_t=cfg.swap_t,
                objective="ic" if cfg.select_objective in ("ic", "ic_drift") else cfg.select_objective)
-    return Selector(Stats(infra.moments("validation"), labels), Stats(infra.moments("fit"), labels), scfg, infra)
+    val = Stats(infra.moments("validation"), labels)
+    fit = val if cfg.weights_block == "validation" else Stats(infra.moments("fit"), labels)
+    return Selector(val, fit, scfg, infra)
 
 
 def observe(infra, desc, cfg, it, out, start, carry):
@@ -126,6 +128,7 @@ class Outcome:
     sel: Selector                 # the selection over the grown bank
     verdict: str                  # infra's sealed word on the test days, F' vs F
     have: set                     # the bank's members after training
+    report: dict | None = None    # the gate's Table 1 of F' vs the reference on the held-out test block
 
 
 def evaluate(obs, plan, a, log):
@@ -157,14 +160,21 @@ def evaluate(obs, plan, a, log):
                   "entered_F": sorted(set(new) & set(r["trained"])),
                   "val_gain": f(sel.ix(alone)) - f(sel.ix(F)),
                   "test_verdict": _verdict(infra, sel, alone, F, log) if r["trained"] else "flat"})
-    return Outcome(F_after=new, sel=sel, verdict=verdict, have=have), desc
+    report = None
+    if cfg.report and desc.report:
+        try:
+            report = infra.test_report(sel.legs(sel.ix(new)))
+        except ApiError as e:
+            log("report", f"not reported: {e}")
+    return Outcome(F_after=new, sel=sel, verdict=verdict, have=have, report=report), desc
 
 
 def record(journal, obs, plan, a, o, tools, policy, log, secs):
     row = {"iteration": obs.it, "policy": policy.name, "F": obs.F, "F_after": o.F_after,
            "F_val": obs.sel.scorer()(obs.sel.ix(obs.F)), "F_after_val": o.sel.scorer()(o.sel.ix(o.F_after)),
            "test_verdict": o.verdict, "trained": a.trained, "failed": sorted(a.failed), "bank": len(o.have),
-           "llm_usd": round(log.cost, 2), "secs": round(secs), "stop": plan.stop}
+           "llm_usd": round(log.cost, 2), "secs": round(secs), "stop": plan.stop,
+           **({"report": o.report} if o.report else {})}
     journal.add_round(a.rows + [{"iteration": obs.it, "lessons": plan.lessons, "tools": tools}], row)
     log("iteration", f"{obs.it}: F val {row['F_val']:.4f} -> {row['F_after_val']:.4f}, test {o.verdict}, "
                      f"trained {len(a.trained)} ({len(a.failed)} failed)")

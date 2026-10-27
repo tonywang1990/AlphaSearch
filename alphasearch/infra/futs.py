@@ -57,7 +57,8 @@ class FutsInfra:
                            feature_set_rule=rs.feature_set_rule.model_dump() if rs.feature_set_rule else None,
                            universe=rs.universe, labels=list(rs.labels), fit_label=d.scoring_horizon,
                            notes={a: dict(v) for a, v in rs.notes.items()}, feature_set_defs=dict(rs.feature_set_defs),
-                           served=[dict(x) for x in getattr(rs, "served", ())])   # 1.0 infra has no `served`
+                           served=[dict(x) for x in getattr(rs, "served", ())],   # 1.0 infra has no `served`
+                           report=getattr(rs, "report_block", None) is not None)
 
     def budget(self):
         b = self._call(self.r.budget)
@@ -112,6 +113,11 @@ class FutsInfra:
 
     def verdict(self, subject, compare_to):
         return self._call(self.r.verdict, self._legs(subject), compare_to=self._legs(compare_to)).verdict
+
+    def test_report(self, subject, compare_to=None):
+        other = self._legs(compare_to) if compare_to else None
+        out = self._call(self.r.test_report, self._legs(subject), compare_to=other)
+        return {"subject": out.subject, "compare_to": out.compare_to}
 
     def screen(self, columns, parent):
         return self._call(self.r.screen, columns, parent=self._legs(parent)).cells

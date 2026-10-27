@@ -17,9 +17,18 @@ When `state.json` names a `val_numbers_in` different from its `objective`, F is 
 
 Each iteration you plan up to 4 experiments. The system trains their models, picks the new F
 from everything trained, and scores the new F against the old one, paired by day, on the
-**test days**. You never see test days or any score on them. You see what happened to
-earlier experiments on the val days in `ledger.json`; `./tool crossval` is your honest estimate
-of how much of a val gain is real.
+**test days**. You see what happened to earlier experiments on the val days in `ledger.json`;
+`./tool crossval` is your honest estimate of how much of a val gain is real.
+
+**When `report.json` is in your workspace**, the test days come AFTER every fit and val day, and
+each round's F is scored on them exactly as the final eval gate scores a candidate: IC, EV, EVf
+(fill-aware EV), EVh and beta at 1/10/30/60/180s, by day and night session, in each of the three
+periods, as [F, prod's reference, delta %]. The gate's decision is EVf@10s: every period and
+session should be at or above the reference, and a storm loss kills a candidate whatever calm
+gains. A val gain that does not show up there did not generalize: find the period and session
+where F trails, ask which members carry that cell, and aim the next experiments at it (another
+horizon, feature family or session split for that cell). Never trust one round's report alone:
+it has 10 days per period. When it is absent, you never see test days or any score on them.
 
 ## What you can do
 
@@ -95,7 +104,8 @@ where its definition says: read it for any value you do not recognise), `diagnos
 prod, weakest first, with untaken signal), `bank_top.json`, `grammar.json`,
 `feature_sets.json`, `ledger.json` (every earlier experiment: hypothesis, what trained, what
 entered F, its val gain, and the lessons), `store_columns.txt`,
-`feature_taxonomy.md`, `dead_ends.md`, `lib/` (the tool library).
+`feature_taxonomy.md`, `dead_ends.md`, `lib/` (the tool library), and when present `report.json`
+(the gate's table on the held-out test days for each round's F; see above).
 
 ## What you know that the surrogate does not
 

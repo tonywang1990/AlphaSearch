@@ -94,3 +94,22 @@ def test_memory_is_this_weeks_prod_on_the_other_symbols(tmp_path):
     text = open(os.path.join(out, "it_0", "memory.md")).read()
     assert "OTHER" in text and "som_other_2f0" in text and "before it hybrid" in text
     assert "**FAKE**" not in text and "linear 1s y on agg_all" in text
+
+
+def test_each_round_reports_the_gate_table_on_the_held_out_days(tmp_path):
+    """With `report`, every round's F' gets the gate's Table 1 on the test block, and the agent's
+    workspace carries it next round (report.json: the latest table, every round's EVf@10s delta)."""
+    import json
+
+    from alphasearch import campaign
+    from alphasearch.config import Config
+    from alphasearch.infra.fake import FakeInfra
+    out = str(tmp_path / "c")
+    campaign.run(FakeInfra(seed=2), Config(policy="surrogate", seed=3, rounds=3, models=6, report=True,
+                                           weights_block="validation"), out)
+    rows = [json.loads(x) for x in open(f"{out}/iters.jsonl")]
+    assert all(set(r["report"]) == {"subject", "compare_to"} for r in rows)
+    rep = json.load(open(f"{out}/it_2/report.json"))
+    assert [h["iteration"] for h in rep["history"]] == [0, 1]
+    cell = rep["latest"]["table"]["storm"]["night"]["EVf@10s"]
+    assert len(cell) == 3 and cell[1] is not None
