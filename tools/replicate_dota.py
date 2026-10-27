@@ -73,7 +73,7 @@ def main():
     p.add_argument("--models", type=int, default=16)
     p.add_argument("--extra", default="{}", help="JSON loop config (agent arms: prompt, memory, experience)")
     p.add_argument("--name", default=None, help="the infra campaign (default replay/<ref>); a fresh run needs its own")
-    p.add_argument("--k-max", type=int, default=None, help="the registered ensemble size cap (default the owner script's, 12)")
+    p.add_argument("--k-max", type=int, default=None, help="the registered ensemble size cap (default 12)")
     a = p.parse_args()
     name = a.name or f"replay/{Path(a.ref).name}"
     from lib.api.registration import identity
