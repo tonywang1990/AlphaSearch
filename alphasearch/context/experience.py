@@ -1,6 +1,7 @@
 """Online learning across campaigns on one symbol (DOTA ADR 0452): every finished campaign leaves
-an episode (val days only, never a test verdict) in a per-symbol store; the next campaign's agent
-reads it as `experience.md` plus `recipes.json`."""
+an episode in a per-symbol store; the next campaign's agent reads it as `experience.md` plus
+`recipes.json`. Val days only, except the campaign's one eval confirmation (the SoM clock's eval
+block, read once per campaign): its final F's gate table, which is the point of reading it."""
 import json
 import os
 
@@ -9,8 +10,19 @@ import numpy as np
 from alphasearch.search.surrogate import effects
 
 
-def record(out, name, policy, F, gains, coords, ledger, iters, objective=None, prompt=None):
-    """`out/episode.json`: the finished campaign, val-only."""
+def eval_cells(rep, metric="EVf@10s"):
+    """{"period/session": delta % vs the reference} of an eval report."""
+    out = {}
+    for period, sessions in rep["subject"].items():
+        for s, cells in sessions.items():
+            c, b = (cells or {}).get(metric), rep["compare_to"].get(period, {}).get(s, {}).get(metric)
+            if c is not None and b:
+                out[f"{period}/{s}"] = round(100 * (c - b) / abs(b), 1)
+    return out
+
+
+def record(out, name, policy, F, gains, coords, ledger, iters, objective=None, prompt=None, eval_report=None):
+    """`out/episode.json`: the finished campaign (val facts, and its eval confirmation if read)."""
     keys = ("action", "hypothesis", "where", "n", "trained", "entered_F", "val_gain", "adopted")
     ep = {"name": name, "policy": policy, "objective": objective, "prompt": prompt, "F": F,
           "trajectory": [{"models": sum(len(d["trained"]) for d in iters[:i + 1]), "F_val": d["F_after_val"]}
@@ -19,7 +31,8 @@ def record(out, name, policy, F, gains, coords, ledger, iters, objective=None, p
           "gains": {n: round(float(g), 6) for n, g in gains.items() if np.isfinite(g)},
           "coords": {n: coords[n] for n in gains if n in coords},
           "experiments": [{k: r[k] for k in keys if k in r} for r in ledger if "action" in r],
-          "lessons": [x for r in ledger for x in r.get("lessons") or []]}
+          "lessons": [x for r in ledger for x in r.get("lessons") or []],
+          **({"eval": {m: eval_cells(eval_report, m) for m in ("EVf@10s", "IC@10s")}} if eval_report else {})}
     path = os.path.join(out, "episode.json")
     json.dump(ep, open(path, "w"), default=float)
     return path
@@ -69,7 +82,8 @@ def render(store):
     json.dump({n: {"mean_val_gain": round(float(np.mean(r["gains"])), 6), "episodes": len(r["gains"]),
                    "in_final_F": r["in_final_F"]} for n, r in rec.items()},
               open(os.path.join(store, "recipes.json"), "w"), indent=0)
-    md = ["# Your own earlier campaigns on this symbol (val days only; nothing here is a test number)",
+    md = ["# Your own earlier campaigns on this symbol (" + ("search days only, but for each one's eval confirmation)"
+          if any(e.get("eval") for e in eps) else "val days only; nothing here is a test number)"),
           "",
           f"{len(eps)} episode(s), each from the prod members on this grammar. A recipe's gain is its "
           "marginal val gain to that episode's final F (a member: what dropping it loses; any other: "
@@ -80,6 +94,15 @@ def render(store):
         traj = " ".join(f"{t['models']}:{t['F_val']:.4f}" for t in e["trajectory"])
         md.append(f"| {e['name']} | {e['policy']} | start {e['F_start_val']:.4f}; {traj} | "
                   f"{', '.join(e['F'])} |")
+    conf = [e for e in eps if e.get("eval")]
+    if conf:
+        cells = sorted({c for e in conf for c in e["eval"]["EVf@10s"]})
+        md += ["", "## Each episode's final F on the eval days (after every day the search reads; read once "
+               "per campaign, like the gate): EVf@10s delta % vs the reference per period/session — the gate "
+               "needs every cell at or above 0, and a storm loss kills a candidate", "",
+               "| episode | " + " | ".join(cells) + " | IC@10s mean |", "|---|" + "---|" * (len(cells) + 1)]
+        md += [f"| {e['name']} | " + " | ".join(f"{e['eval']['EVf@10s'].get(c, float('nan')):+.1f}" for c in cells)
+               + f" | {np.mean(list(e['eval']['IC@10s'].values()) or [np.nan]):+.1f} |" for e in conf]
     if eps:
         best = max(eps, key=lambda e: e["trajectory"][-1]["F_val"] if e["trajectory"] else 0)
         md += ["", f"Best final F on val ({best['name']}): `{json.dumps(best['F'])}`"]

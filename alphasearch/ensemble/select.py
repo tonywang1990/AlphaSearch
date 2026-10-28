@@ -9,6 +9,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from alphasearch.ensemble.moments import Stats, fit_weights, paired, paired_daily, score
+from alphasearch.ensemble.walkforward import WalkForward
 
 SWAP_T = 2.0      # LU: unmargined swaps chosen on half the val days lost 0.06 on the other half
 
@@ -19,7 +20,10 @@ class Cfg:
     host: str | None = None
     corrector_w: float = 0.5
     swap_t: float = SWAP_T
-    objective: str = "ic"
+    objective: str = "ic"          # ic (moments) | wf (walk-forward cells: walkforward.py) | infra
+    wf_chunks: int = 4
+    worst_weight: float = 0.5
+    weight_shrink: float = 0.25
 
 
 class Selector:
@@ -30,12 +34,16 @@ class Selector:
         self.fit_order = [fit.idx[n] for n in self.names]
         self.c_fit, self.S_fit = cf[self.fit_order], Sf[np.ix_(self.fit_order, self.fit_order)]
         self._cache = {}
+        self.wf = (WalkForward(val, cfg.wf_chunks, cfg.worst_weight, cfg.weight_shrink)
+                   if cfg.objective == "wf" else None)
 
     # -- blends ---------------------------------------------------------------------------
     def weights(self, jj):
         """The host's fixed weights in host mode, else w = S^-1 c on the fit block."""
         if self.cfg.host:
             return np.array([1.0 if self.names[j] == self.cfg.host else self.cfg.corrector_w for j in jj])
+        if self.wf:
+            return self.wf.weights(jj)
         return fit_weights(self.c_fit[jj], self.S_fit[np.ix_(jj, jj)])
 
     def blend(self, jj):
@@ -52,6 +60,11 @@ class Selector:
     def scorer(self, counts=None):
         """f(jj) -> the selection score on the val days (`counts` weights them: IC only), with
         `f.many(sets)`, one infra job for a whole batch on objectives with no moment form."""
+        if self.wf:
+            assert counts is None, "walk-forward folds are the day weighting"
+            f = lambda jj: self.wf.score(list(jj))
+            f.many = lambda sets: [f(s) for s in sets]
+            return f
         if self.cfg.objective == "ic":
             per = self.val.per_period(self.val.ones() if counts is None else counts)
             f = lambda jj: score(per, *self.blend(jj)) if len(jj) else float("nan")
@@ -71,6 +84,11 @@ class Selector:
 
     def t(self, counts=None):
         """t(a, b): the paired val t of member set a over b."""
+        if self.wf:
+            def t(a, b):
+                g, se = self.wf.gain(list(a), list(b))
+                return g / se if se > 0 else 0.0
+            return t
         if self.cfg.objective == "ic":
             ones = self.val.ones() if counts is None else counts
 
@@ -90,6 +108,8 @@ class Selector:
         """(gain, SE) of member set `new` over `old` on the val days; (0, 0) for the same set."""
         if set(new) == set(old):
             return 0.0, 0.0
+        if self.wf:
+            return self.wf.gain(list(new), list(old))
         if self.cfg.objective == "ic":
             return paired(self.val, self.val.ones(), self.blend(new), self.blend(old))
         f, per = self.scorer(), dict(zip(map(str, self.val.days), self.val.period, strict=True))

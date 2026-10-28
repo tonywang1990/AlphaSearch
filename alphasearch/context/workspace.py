@@ -85,38 +85,17 @@ def library(obs, ctx):
     launcher(obs.ws, ctx["lib"])
 
 
-def _pct(base, cand):
-    return None if base is None or cand is None or abs(base) < 1e-9 else round(100 * (cand - base) / abs(base), 1)
+def cells(obs, ctx):
+    """cells.json (walk-forward selection only): what F's selection score is made of, fold by fold and
+    period/session cell, each a ratio to the reference on days after its weights' days."""
+    if obs.sel.wf:
+        _json(obs.ws, "cells.json", {"what": "F's walk-forward ratio to the reference per fold and "
+                                     "period/session cell; a fold scores mean + worst_weight * min",
+                                     "worst_weight": obs.sel.cfg.worst_weight, "F": obs.F,
+                                     "table": obs.sel.wf.table(obs.sel.ix(obs.F))})
 
 
-def _compare(rep):
-    """{period: {session: {metric: [F', reference, delta %]}}}: the gate's Table 1 layout."""
-    out = {}
-    for period, sessions in rep["subject"].items():
-        ref = rep["compare_to"].get(period, {})
-        out[period] = {s: {m: [v, ref.get(s, {}).get(m), _pct(ref.get(s, {}).get(m), v)] for m, v in cells.items()}
-                       for s, cells in sessions.items() if isinstance(cells, dict)}
-    return out
-
-
-def report(obs, ctx):
-    """report.json: the eval gate's Table 1 of each round's F' vs the reference on the held-out test
-    days (strictly after every day the search selects on), the latest in full, every round's EVf@10s."""
-    rows = [r for r in ctx["journal"].iters if r.get("report")]
-    if not rows:
-        return
-    last = rows[-1]
-    _json(obs.ws, "report.json", {
-        "what": "the eval gate's Table 1 on the TEST days (after the fit and validation days, never selected on): "
-                "[F', reference, delta %] per period, session and metric; the gate judges EVf@10s per period "
-                "and session, and a storm EVf loss kills a candidate whatever calm does",
-        "latest": {"iteration": last["iteration"], "F": last["F_after"], "table": _compare(last["report"])},
-        "history": [{"iteration": r["iteration"], "EVf@10s_delta_pct": {
-            f"{p}/{s}": c.get("EVf@10s", [None, None, None])[2] for p, ss in _compare(r["report"]).items()
-            for s, c in ss.items()}} for r in rows]})
-
-
-PROVIDERS = (state, diagnosis, grammar, ledger, lists, memory, docs, bank, report, library)
+PROVIDERS = (state, diagnosis, grammar, ledger, lists, memory, docs, bank, cells, library)
 
 
 def build(obs, **ctx):

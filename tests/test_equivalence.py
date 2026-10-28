@@ -20,7 +20,7 @@ def _rows(p):
 
 
 def _snap(out):
-    its = [{k: v for k, v in r.items() if k not in ("secs", "llm_usd")}
+    its = [{k: v for k, v in r.items() if k not in ("secs", "llm_usd", "F_after_legs", "F_after_cells")}  # records only
            for r in _rows(os.path.join(out, "iters.jsonl"))]
     ws = os.path.join(out, sorted(d for d in os.listdir(out) if d.startswith("it_"))[-1])
     return {"iters": its, "ledger": _rows(os.path.join(out, "ledger.jsonl")),

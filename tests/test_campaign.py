@@ -96,20 +96,25 @@ def test_memory_is_this_weeks_prod_on_the_other_symbols(tmp_path):
     assert "**FAKE**" not in text and "linear 1s y on agg_all" in text
 
 
-def test_each_round_reports_the_gate_table_on_the_held_out_days(tmp_path):
-    """With `report`, every round's F' gets the gate's Table 1 on the test block, and the agent's
-    workspace carries it next round (report.json: the latest table, every round's EVf@10s delta)."""
+def test_the_som_clock_selects_walk_forward_and_reads_eval_once(tmp_path):
+    """select_objective='wf': F is chosen walk-forward on fit + validation (the aggregator), each round
+    keeps the legs it would serve and its fold x cell table, the agent's workspace carries cells.json,
+    and the eval block is read once, at the end, into the episode."""
     import json
 
     from alphasearch import campaign
     from alphasearch.config import Config
     from alphasearch.infra.fake import FakeInfra
-    out = str(tmp_path / "c")
-    campaign.run(FakeInfra(seed=2), Config(policy="surrogate", seed=3, rounds=3, models=6, report=True,
-                                           weights_block="validation"), out)
+    out, store = str(tmp_path / "c"), str(tmp_path / "store")
+    infra = FakeInfra(seed=2)
+    calls = []
+    real = infra.test_report
+    infra.test_report = lambda *a, **k: calls.append(a) or real(*a, **k)
+    campaign.run(infra, Config(policy="surrogate", seed=3, rounds=3, models=6, report=True, select_objective="wf",
+                               swap_t=0.0, experience=store), out)
     rows = [json.loads(x) for x in open(f"{out}/iters.jsonl")]
-    assert all(set(r["report"]) == {"subject", "compare_to"} for r in rows)
-    rep = json.load(open(f"{out}/it_2/report.json"))
-    assert [h["iteration"] for h in rep["history"]] == [0, 1]
-    cell = rep["latest"]["table"]["storm"]["night"]["EVf@10s"]
-    assert len(cell) == 3 and cell[1] is not None
+    assert all(r["F_after_legs"] and set(r["F_after_cells"]) == {"fold1", "fold2", "fold3"} for r in rows)
+    assert len(calls) == 1 and json.load(open(f"{out}/eval_report.json"))["subject"]
+    assert "fold1" in json.load(open(f"{out}/it_2/cells.json"))["table"]
+    assert json.load(open(f"{out}/episode.json"))["eval"]["EVf@10s"]
+    assert "eval days" in open(f"{store}/experience.md").read()

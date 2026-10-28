@@ -19,7 +19,7 @@ import numpy as np
 from alphasearch import round as rnd
 from alphasearch.context import experience, memory, workspace
 from alphasearch.ensemble.diagnose import diagnose
-from alphasearch.infra.contract import check_version, name_of
+from alphasearch.infra.contract import ApiError, check_version, name_of
 from alphasearch.policies import POLICIES
 from alphasearch.records import Journal
 from alphasearch.runtime.log import Log
@@ -44,6 +44,23 @@ def _setup(infra, cfg, out, desc, log, journal):
             infra.train(carry)
             log("carry", f"{len(carry)} models every earlier episode trained")
     return mem, dict(failed=journal.failed, feature_sets=dict(desc.feature_sets), seen=seen, recent=[])
+
+
+def _eval_report(infra, desc, cfg, out, legs, log):
+    """The SoM eval block, read ONCE per campaign: the gate's Table 1 of the final F vs the reference
+    on the days after every day the search read; the next campaign's agent sees it (experience.md)."""
+    path = os.path.join(out, "eval_report.json")
+    if os.path.exists(path):
+        return json.load(open(path))
+    if not (cfg.report and desc.report):
+        return None
+    try:
+        rep = infra.test_report(legs)
+    except ApiError as e:
+        log("eval", f"not reported: {e}")
+        return None
+    json.dump(rep, open(path, "w"), default=float)
+    return rep
 
 
 def run(infra, cfg, out):
@@ -81,9 +98,11 @@ def run(infra, cfg, out):
     if journal.iters and not os.path.exists(os.path.join(out, "episode.json")):
         sel = rnd.selector(infra, desc, cfg)
         F = journal.iters[-1]["F_after"]
+        ev = _eval_report(infra, desc, cfg, out, sel.legs(sel.ix(F)), log)
         ep = experience.record(out, os.path.basename(out.rstrip("/")), cfg.policy, F, sel.gains(F),
                                {m.name: m.recipe for m in infra.models()}, journal.ledger, journal.iters,
-                               objective=desc.objective, prompt=os.path.basename(cfg.prompt or workspace.PROMPT))
+                               objective=desc.objective, prompt=os.path.basename(cfg.prompt or workspace.PROMPT),
+                               eval_report=ev)
         if cfg.experience:
             experience.add(cfg.experience, ep)
     return out
