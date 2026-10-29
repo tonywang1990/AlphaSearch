@@ -136,3 +136,18 @@ def test_regime_cells_score_the_least_reverting_units(tmp_path):
     assert np.isfinite(reversion(st.m, st.ref[0][0])).mean() > 0.9
     n_plain, n_regime = (len(WalkForward(st, regime=r).folds[0][2]) for r in (False, True))
     assert n_regime == n_plain + len(st.m.sessions)
+
+
+def test_regime_cells_need_a_horizon_and_its_double():
+    """The reversion tag reads the longest label h whose 2h is also a label; without such a pair the
+    walk-forward refuses regime cells rather than guessing."""
+    import dataclasses
+
+    from alphasearch.ensemble.moments import Stats
+    from alphasearch.ensemble.walkforward import WalkForward, merge
+    infra = FakeInfra(seed=2)
+    m = merge(infra.moments("fit"), infra.moments("validation"))
+    keep = [i for i, x in enumerate(m.label_names) if x != "60s"]
+    m = dataclasses.replace(m, labels=[m.labels[i] for i in keep], label_names=[m.label_names[i] for i in keep])
+    with pytest.raises(ValueError, match="two labels h and 2h"):
+        WalkForward(Stats(m, ["10s"]), regime=True)

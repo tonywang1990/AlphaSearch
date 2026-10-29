@@ -10,7 +10,9 @@ and recent cells fell). Weights are pooled across periods and shrunk toward equa
 period cannot carry 12 free weights.
 
 `regime=True` adds one cell per session over the least-reverting third of its units, all periods
-pooled: a set whose edge needs the price to revert at 30s scores on the days it does not (the LU
+pooled (reversion: the autocorrelation at the longest label horizon whose double is a label): a set
+whose edge needs the price to revert scores on the days it does not, a regime any held-out block can
+turn into (evidence, the LU
 gate, 2026-10-29: the recent-night OOS stopped reverting and the 30s trees that won storm lost it;
 in-window, the same set already trailed prod on non-reverting nights)."""
 import numpy as np
@@ -31,12 +33,18 @@ def merge(a: Moments, b: Moments) -> Moments:
 
 
 def reversion(m: Moments, j):
-    """Each unit's 30s return autocorrelation from member j's label sums: r60 is two consecutive r30,
-    so var(r60) / (2 var(r30)) - 1; below 0 the price reverts at 30s."""
-    lab = dict(zip(m.label_names, m.labels, strict=True))
+    """Each unit's return autocorrelation at horizon h from member j's label sums, for the longest h
+    whose double 2h is also a label: r_2h is two consecutive r_h, so var(r_2h) / (2 var(r_h)) - 1;
+    below 0 the price reverts at h."""
+    secs = {int(x.rstrip("s")): i for i, x in enumerate(m.label_names)}
+    pairs = [h for h in secs if 2 * h in secs]
+    if not pairs:
+        raise ValueError(f"regime cells need two labels h and 2h; this campaign carries {m.label_names}")
+    h = max(pairs)
     with np.errstate(divide="ignore", invalid="ignore"):
-        var = {h: lab[h]["syy"][:, j] / m.n[:, j] - (lab[h]["sy"][:, j] / m.n[:, j]) ** 2 for h in ("30s", "60s")}
-        return var["60s"] / (2 * var["30s"]) - 1
+        var = [m.labels[secs[x]]["syy"][:, j] / m.n[:, j] - (m.labels[secs[x]]["sy"][:, j] / m.n[:, j]) ** 2
+               for x in (h, 2 * h)]
+        return var[1] / (2 * var[0]) - 1
 
 
 def shrunk_weights(c, S, shrink):
