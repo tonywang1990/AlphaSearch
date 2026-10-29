@@ -25,6 +25,7 @@ class Cfg:
     worst_weight: float = 0.5
     weight_shrink: float = 0.25
     regime_cells: bool = False
+    keep_reference: bool = False   # the reference's legs stay in every selected set (anchored on the incumbent)
 
 
 class Selector:
@@ -166,6 +167,8 @@ class Selector:
         f, t = self.scorer(counts), self.t(counts)
         pool = self.pool(exclude)
         host = (self.val.idx[self.cfg.host],) if self.cfg.host else ()
+        if self.cfg.keep_reference:            # never left by a swap, like the host
+            host += tuple(j for j, _ in self.val.ref if j not in host)
         sets = [host] + [host + tuple(j for j in self.ix(s) if j not in host)[:self.cfg.k_max - len(host)]
                          for s in starts if s and all(n in self.val.idx for n in s)]
         got = [self.swap(self.greedy(pool, f, start=st), pool, f, self.cfg.k_max, keep=host,

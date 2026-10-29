@@ -151,3 +151,14 @@ def test_regime_cells_need_a_horizon_and_its_double():
     m = dataclasses.replace(m, labels=[m.labels[i] for i in keep], label_names=[m.label_names[i] for i in keep])
     with pytest.raises(ValueError, match="two labels h and 2h"):
         WalkForward(Stats(m, ["10s"]), regime=True)
+
+
+def test_keep_reference_anchors_every_f_on_prods_legs(tmp_path):
+    """keep_reference: the reference's legs are in every round's F (a swap never drops them); without
+    it the selection is free to replace them."""
+    infra, out = FakeInfra(seed=2), str(tmp_path / "k")
+    campaign.run(infra, Config(policy="surrogate", seed=3, rounds=3, models=6, select_objective="wf",
+                               swap_t=0.0, keep_reference=True), out)
+    ref = set(infra.describe().reference)
+    rows = [json.loads(x) for x in open(f"{out}/iters.jsonl")]
+    assert all(ref <= {n.removesuffix(".s1") for n, _ in r["F_after_legs"]} | {n for n, _ in r["F_after_legs"]} for r in rows)
