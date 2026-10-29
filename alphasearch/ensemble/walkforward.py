@@ -7,7 +7,12 @@ So no number the search selects on comes from the days its weights were fitted o
 works in one stretch of the window scores poorly, and a session or period that loses cannot hide
 behind one that wins (the LU gate: pooled in-window IC rose every round while the held-out night
 and recent cells fell). Weights are pooled across periods and shrunk toward equal: 10-20 days per
-period cannot carry 12 free weights."""
+period cannot carry 12 free weights.
+
+`regime=True` adds one cell per session over the least-reverting third of its units, all periods
+pooled: a set whose edge needs the price to revert at 30s scores on the days it does not (the LU
+gate, 2026-10-29: the recent-night OOS stopped reverting and the 30s trees that won storm lost it;
+in-window, the same set already trailed prod on non-reverting nights)."""
 import numpy as np
 
 from alphasearch.ensemble.moments import Stats, ic
@@ -25,6 +30,15 @@ def merge(a: Moments, b: Moments) -> Moments:
                    labels=[{k: cat(x[k], y[k]) for k in x} for x, y in zip(a.labels, b.labels, strict=True)])
 
 
+def reversion(m: Moments, j):
+    """Each unit's 30s return autocorrelation from member j's label sums: r60 is two consecutive r30,
+    so var(r60) / (2 var(r30)) - 1; below 0 the price reverts at 30s."""
+    lab = dict(zip(m.label_names, m.labels, strict=True))
+    with np.errstate(divide="ignore", invalid="ignore"):
+        var = {h: lab[h]["syy"][:, j] / m.n[:, j] - (lab[h]["sy"][:, j] / m.n[:, j]) ** 2 for h in ("30s", "60s")}
+        return var["60s"] / (2 * var["30s"]) - 1
+
+
 def shrunk_weights(c, S, shrink):
     """w = (S + shrink * diag(S))^-1 c, sum |w| = 1: the IC-optimal weights, ridge-shrunk."""
     S = np.asarray(S, float)
@@ -36,9 +50,16 @@ def shrunk_weights(c, S, shrink):
 
 
 class WalkForward:
-    def __init__(self, st: Stats, chunks=4, worst_weight=0.5, shrink=0.25):
+    def __init__(self, st: Stats, chunks=4, worst_weight=0.5, shrink=0.25, regime=False):
         self.st, self.worst_weight, self.shrink = st, worst_weight, shrink
         sess = np.asarray(st.m.session)
+        groups = [(sess == s, f"{st.m.periods[k]}/{st.m.sessions[s]}", k)
+                  for k in np.unique(st.period) for s in np.unique(sess)]
+        if regime:
+            rho = reversion(st.m, st.ref[0][0])
+            for s in np.unique(sess):
+                q = (sess == s) & np.isfinite(rho)
+                groups.append((q & (rho >= np.quantile(rho[q], 2 / 3)), f"nonrev/{st.m.sessions[s]}", None))
         order = {}                                     # chunk index of every day, per period
         for k in np.unique(st.period):
             days = np.flatnonzero(st.period == k)       # day indices in time order (st.days is sorted)
@@ -49,12 +70,12 @@ class WalkForward:
         for i in range(1, chunks):
             c, S = st.moments((chunk < i).astype(float))
             cells = []
-            for k in np.unique(st.period):
-                for s in np.unique(sess):
-                    cc, SS = st.moments(((chunk == i) & (st.period == k)).astype(float), units=sess == s)
-                    r = st.ref_ic(cc, SS)
-                    if np.isfinite(r) and abs(r) > 1e-9:
-                        cells.append((cc, SS, r, f"{st.m.periods[k]}/{st.m.sessions[s]}"))
+            for units, name, k in groups:
+                days = (chunk == i) if k is None else (chunk == i) & (st.period == k)
+                cc, SS = st.moments(days.astype(float), units=units)
+                r = st.ref_ic(cc, SS)
+                if np.isfinite(r) and abs(r) > 1e-9:
+                    cells.append((cc, SS, r, name))
             self.folds.append((c, S, cells))
         self.c_all, self.S_all = st.moments(st.ones())
 

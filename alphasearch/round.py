@@ -64,7 +64,8 @@ def selector(infra, desc, cfg):
     labels = desc.labels if cfg.select_objective == "ic_drift" else [desc.fit_label]
     scfg = Cfg(k_max=desc.k_max, host=desc.host, corrector_w=cfg.corrector_w, swap_t=cfg.swap_t,
                objective="ic" if cfg.select_objective in ("ic", "ic_drift") else cfg.select_objective,
-               wf_chunks=cfg.wf_chunks, worst_weight=cfg.worst_weight, weight_shrink=cfg.weight_shrink)
+               wf_chunks=cfg.wf_chunks, worst_weight=cfg.worst_weight, weight_shrink=cfg.weight_shrink,
+               regime_cells=cfg.regime_cells)
     if scfg.objective == "wf":               # the SoM aggregator: fit + validation, walked forward
         agg = Stats(merge(infra.moments("fit"), infra.moments("validation")), labels)
         return Selector(agg, agg, scfg, infra)

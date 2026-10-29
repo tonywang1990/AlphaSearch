@@ -118,3 +118,21 @@ def test_the_som_clock_selects_walk_forward_and_reads_eval_once(tmp_path):
     assert "fold1" in json.load(open(f"{out}/it_2/cells.json"))["table"]
     assert json.load(open(f"{out}/episode.json"))["eval"]["EVf@10s"]
     assert "eval days" in open(f"{store}/experience.md").read()
+
+
+def test_regime_cells_score_the_least_reverting_units(tmp_path):
+    """regime_cells: every fold also scores one cell per session on the least-reverting third of its
+    units (30s autocorrelation from the label sums), all periods pooled."""
+    import numpy as np
+
+    from alphasearch.ensemble.moments import Stats
+    from alphasearch.ensemble.walkforward import WalkForward, merge, reversion
+    infra, out = FakeInfra(seed=2), str(tmp_path / "c")
+    campaign.run(infra, Config(policy="surrogate", seed=3, rounds=2, models=6, select_objective="wf",
+                               regime_cells=True, swap_t=0.0), out)
+    st = Stats(merge(infra.moments("fit"), infra.moments("validation")), ["10s"])
+    rows = [json.loads(x) for x in open(f"{out}/iters.jsonl")]
+    assert all({f"nonrev/{s}" for s in st.m.sessions} <= set(r["F_after_cells"]["fold1"]) for r in rows)
+    assert np.isfinite(reversion(st.m, st.ref[0][0])).mean() > 0.9
+    n_plain, n_regime = (len(WalkForward(st, regime=r).folds[0][2]) for r in (False, True))
+    assert n_regime == n_plain + len(st.m.sessions)

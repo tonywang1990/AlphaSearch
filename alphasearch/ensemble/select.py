@@ -24,6 +24,7 @@ class Cfg:
     wf_chunks: int = 4
     worst_weight: float = 0.5
     weight_shrink: float = 0.25
+    regime_cells: bool = False
 
 
 class Selector:
@@ -34,7 +35,7 @@ class Selector:
         self.fit_order = [fit.idx[n] for n in self.names]
         self.c_fit, self.S_fit = cf[self.fit_order], Sf[np.ix_(self.fit_order, self.fit_order)]
         self._cache = {}
-        self.wf = (WalkForward(val, cfg.wf_chunks, cfg.worst_weight, cfg.weight_shrink)
+        self.wf = (WalkForward(val, cfg.wf_chunks, cfg.worst_weight, cfg.weight_shrink, cfg.regime_cells)
                    if cfg.objective == "wf" else None)
 
     # -- blends ---------------------------------------------------------------------------

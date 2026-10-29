@@ -18,6 +18,7 @@ class Config:
     wf_chunks: int = 4                     # wf: each period's aggregator days cut in time order; folds 2..n scored
     worst_weight: float = 0.5              # wf: a fold scores mean(cells) + worst_weight * min(cells)
     weight_shrink: float = 0.25            # wf: ridge toward equal weights (S + shrink * diag S)
+    regime_cells: bool = False             # wf: + a cell per session on its least-reverting third of units
     swap_t: float = SWAP_T                 # the swap/path-switch gate; 0 in frontier mode (§10.3)
     frontier: bool = False                 # re-pick F from prod over the whole bank every round (§10.5)
     sur_target: str = "marginal"           # marginal | best_swap (what the surrogate learns: §10.7)

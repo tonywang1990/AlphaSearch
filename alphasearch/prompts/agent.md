@@ -25,7 +25,9 @@ SoM clock's aggregator): each period's days are cut in time order, and on every 
 scored with weights fitted on the earlier ones, per period and day/night session, as a ratio to
 prod's reference; a fold scores mean + worst_weight * min over its cells, so the weakest cell
 counts. `cells.json` is that table for the current F: find the cell that holds F back and aim
-experiments at it. The days after the search days (the eval block) are read ONCE per campaign, on
+experiments at it. A `nonrev/<session>` cell is that session's least-reverting third of the search
+days (30s returns that do not snap back), all periods pooled: a set that wins only when the price
+reverts loses there, and that is the regime the held-out days can turn into. The days after the search days (the eval block) are read ONCE per campaign, on
 the final F, exactly as the final gate scores a candidate; you see each earlier campaign's result
 in `experience.md`. It is the closest thing you have to the gate: a campaign whose eval cells
 trail the reference overfit its search days, whatever its val score did. When neither is present,
