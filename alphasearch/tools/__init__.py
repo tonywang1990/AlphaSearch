@@ -45,4 +45,4 @@ def answer(obs, cmd, args):
 TOOLS["run"] = Tool("run", "run <script.py> [args]", "your own Python in the sandbox (client-side: tools/server.py)",
                     None)
 
-from alphasearch.tools import bank, store  # noqa: E402,F401 - registers the tools
+from alphasearch.tools import bank, fill, store  # noqa: E402,F401 - registers the tools

@@ -79,3 +79,24 @@ def test_no_test_field_reaches_the_experience_store(tmp_path):
     text = subprocess.run(["cat", *[os.path.join(dp, f) for dp, _, fs in os.walk(store) for f in fs]],
                           capture_output=True, text=True).stdout
     assert '"test' not in text and "test_verdict" not in text
+
+
+def test_evf_scores_a_change_against_f_and_prod_by_val_day(tmp_path):
+    """`./tool evf`: the changed F, F and prod scored in one score_many job on fill-aware EV, paired
+    by val day; a bad member list is refused before any job."""
+    from alphasearch.config import Config
+    from alphasearch.infra.fake import FakeInfra
+    from alphasearch.round import observe
+    from alphasearch.tools import answer
+    infra = FakeInfra(seed=2)
+    infra.train([infra.recipes()[i] for i in range(4)])
+    desc, calls = infra.describe(), []
+    real = infra.score_many
+    infra.score_many = lambda sets, objective: calls.append(objective) or real(sets, objective)
+    obs = observe(infra, desc, Config(policy="surrogate", select_objective="wf"), 0, str(tmp_path), desc.reference,
+                  dict(failed=set(), feature_sets={}, seen=set(), recent=[]))
+    extra = next(n for n in obs.sel.val.idx if n not in obs.F)
+    out = answer(obs, "evf", ["--add", extra])
+    assert calls == ["evf"] and out["members"] == obs.F + [extra] and out["days"] > 2
+    assert np.isfinite(out["t_vs_F"]) and np.isfinite(out["gain_vs_prod_pct"])
+    assert "error" in answer(obs, "evf", ["--add", "not.a.member"]) and calls == ["evf"]
