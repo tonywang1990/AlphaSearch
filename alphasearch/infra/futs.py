@@ -107,8 +107,9 @@ class FutsInfra:
                        label_names=[str(x) for x in a["labels"]],
                        reference=[(self._name[n], w) for n, w in self._moments["_ref"]])
 
-    def score_many(self, sets, objective):
-        res = self._call(self.r.score_many, [self._legs(s) for s in sets], objective=objective)
+    def score_many(self, sets, objective, cell=None):
+        kw = {"cell": cell} if cell else {}                 # API 1.1 infra takes no cell
+        res = self._call(self.r.score_many, [self._legs(s) for s in sets], objective=objective, **kw)
         return [Scored(value=np.nan if s.value is None else s.value, daily=dict(s.daily)) for s in res.scores]
 
     def verdict(self, subject, compare_to):

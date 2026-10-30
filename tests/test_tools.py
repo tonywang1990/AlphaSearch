@@ -92,7 +92,7 @@ def test_evf_scores_a_change_against_f_and_prod_by_val_day(tmp_path):
     infra.train([infra.recipes()[i] for i in range(4)])
     desc, calls = infra.describe(), []
     real = infra.score_many
-    infra.score_many = lambda sets, objective: calls.append(objective) or real(sets, objective)
+    infra.score_many = lambda sets, objective, cell=None: calls.append(objective) or real(sets, objective, cell)
     obs = observe(infra, desc, Config(policy="surrogate", select_objective="wf"), 0, str(tmp_path), desc.reference,
                   dict(failed=set(), feature_sets={}, seen=set(), recent=[]))
     extra = next(n for n in obs.sel.val.idx if n not in obs.F)
@@ -100,3 +100,5 @@ def test_evf_scores_a_change_against_f_and_prod_by_val_day(tmp_path):
     assert calls == ["evf"] and out["members"] == obs.F + [extra] and out["days"] > 2
     assert np.isfinite(out["t_vs_F"]) and np.isfinite(out["gain_vs_prod_pct"])
     assert "error" in answer(obs, "evf", ["--add", "not.a.member"]) and calls == ["evf"]
+    cell = answer(obs, "evf", ["--add", extra, "--cell", "calm/day"])
+    assert cell["cell"] == "calm/day" and 0 < cell["days"] <= out["days"] and cell["evf"] != out["evf"]

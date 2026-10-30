@@ -163,8 +163,21 @@ class FakeInfra:
         Z, _ = self._z([n for n, _ in legs], rows)
         return Z @ np.array([w for _, w in legs])
 
-    def _daily(self, legs, block, objective):
-        rows = self._rows(block)
+    def _cell(self, block, cell):
+        """The rows of `cell` ("<period>/<session>", either part optional; session "day" = morning +
+        afternoon) within `block`."""
+        per, _, ses = (cell or "").partition("/")
+        keep = np.ones(len(self.day), bool)
+        if per:
+            days = list(BLOCKS[block])
+            keep &= np.minimum((self.day - min(days)) * 3 // len(days), 2) == PERIODS.index(per)
+        if ses:
+            keep &= np.isin(self.unit_session[self.unit], [SESSIONS.index(x) for x in
+                                                            (("morning", "afternoon") if ses == "day" else (ses,))])
+        return keep
+
+    def _daily(self, legs, block, objective, cell=None):
+        rows = self._rows(block) & self._cell(block, cell)
         p, y, d = self._pred(legs, rows), self.y[rows], self.day[rows]
         out = {}
         for day in np.unique(d):
@@ -176,10 +189,10 @@ class FakeInfra:
                 out[str(day)] = float(np.mean(np.sign(p[q][top]) * y[q][top]))
         return out
 
-    def score_many(self, sets, objective):
+    def score_many(self, sets, objective, cell=None):
         out = []
         for legs in sets:
-            daily = self._daily(legs, "validation", objective)
+            daily = self._daily(legs, "validation", objective, cell)
             out.append(Scored(value=float(np.mean(list(daily.values()))), daily=daily))
         return out
 

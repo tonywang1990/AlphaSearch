@@ -67,9 +67,10 @@ the val days):
 - `./tool whatif --add M... --drop M...`: F with trained members added or dropped. Val score,
   and the paired val gain over F with its SE. Use it before you train anything: the bank may
   already hold a better F.
-- `./tool evf --add M... --drop M...`: the same change scored on fill-aware EV (the gate's EVf:
-  the 1% tail weighted by the chance a taking order fills), against F and prod, paired by val day.
-  One infra job per call: use it on a finalist, not to search. An IC gain whose EVf falls is how
+- `./tool evf --add M... --drop M... [--cell P/S]`: the same change scored on fill-aware EV (the
+  gate's EVf: the 1% tail weighted by the chance a taking order fills), against F and prod, paired by
+  val day; `--cell calm/day` (any period, and night or day) scores that cell alone. One infra job per
+  call: use it on a finalist, not to search, and on the cell `experience.md`'s eval table shows behind. An IC gain whose EVf falls is how
   the LU gate was lost (a set matched prod on IC yet its best calls landed where the book does not
   fill).
 - `./tool members [regex]`: trained members by their marginal val gain to F.

@@ -9,15 +9,17 @@ import numpy as np
 from alphasearch.tools import opt, tool
 
 
-@tool("evf --add M... --drop M...", "F with members added or dropped vs F and prod on fill-aware EV (val days; one infra job)")
+@tool("evf --add M... --drop M... [--cell P/S]",
+      "F with members added or dropped vs F and prod on fill-aware EV (val days, or one period/session cell; one infra job)")
 def evf(obs, args):
     sel, F = obs.sel, obs.F
+    cell = (opt(args, "--cell") or [None])[0]
     s = [n for n in F if n not in opt(args, "--drop")] + opt(args, "--add")
     bad = [n for n in s if n not in sel.val.idx]
     if bad or not 0 < len(s) <= sel.cfg.k_max:
         return {"error": f"{len(s)} members (1-{sel.cfg.k_max}); not trained: {bad[:3]}"}
     ref = [(n, float(w)) for n, w in sel.val.m.reference]
-    new, old, prod = obs.infra.score_many([sel.legs(sel.ix(s)), sel.legs(sel.ix(F)), ref], "evf")
+    new, old, prod = obs.infra.score_many([sel.legs(sel.ix(s)), sel.legs(sel.ix(F)), ref], "evf", cell)
 
     def paired(a, b):
         d = np.array([a.daily[k] - b.daily[k] for k in a.daily if k in b.daily])
@@ -27,7 +29,7 @@ def evf(obs, args):
 
     g, se, n = paired(new, old)
     gp, sep, _ = paired(new, prod)
-    return {"members": s, "evf": new.value, "F_evf": old.value, "prod_evf": prod.value,
+    return {"members": s, "cell": cell or "all", "evf": new.value, "F_evf": old.value, "prod_evf": prod.value,
             "gain_vs_F": g, "gain_vs_F_se": se, "t_vs_F": g / se if se else None,
             "gain_vs_prod_pct": 100 * (new.value / prod.value - 1) if prod.value else None,
             "t_vs_prod": gp / sep if sep else None, "days": n}
