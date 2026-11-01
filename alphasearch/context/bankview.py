@@ -71,6 +71,7 @@ def write(R, ws, seen):
                      "ic_val": {lab: {per: round(float(c_val[li, p, j]), 4) for p, per in enumerate(periods)}
                                 for li, lab in enumerate(labels)},
                      "corr_with_F": round(float(rF[j]), 4), "pcorr_given_F": round(float(pc[j]), 4),
+                     **({"served_features": sel.features([j])} if sel.cfg.cost else {}),
                      "marginal_gain": round(float(gain), 5) if gain is not None and np.isfinite(gain) else None,
                      "best_swap_gain": round(float(swap[0]), 5) if swap and np.isfinite(swap[0]) else None,
                      "best_swap_out": swap[1] if swap else None,

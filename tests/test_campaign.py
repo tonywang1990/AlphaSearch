@@ -162,3 +162,39 @@ def test_keep_reference_anchors_every_f_on_prods_legs(tmp_path):
     ref = set(infra.describe().reference)
     rows = [json.loads(x) for x in open(f"{out}/iters.jsonl")]
     assert all(ref <= {n.removesuffix(".s1") for n, _ in r["F_after_legs"]} | {n for n, _ in r["F_after_legs"]} for r in rows)
+
+
+def test_complexity_cost_prices_the_selection(tmp_path):
+    """cost_lambda: the selection score is charged lambda per 100 served features of the set (the union
+    of its members' features), in the score, the gain and the swap t alike; a high price picks a cheaper F."""
+    import numpy as np
+
+    from alphasearch.round import selector
+    infra = FakeInfra(seed=2)
+    campaign.run(infra, Config(policy="surrogate", seed=3, rounds=1, models=6, swap_t=0.0), str(tmp_path / "w"))
+    names = [m.name for m in infra.models()]
+    rng = np.random.default_rng(0)
+    table = {n: [f"f{i}" for i in rng.choice(400, size=int(rng.integers(20, 200)), replace=False)] for n in names}
+    path = str(tmp_path / "cost.json")
+    json.dump(table, open(path, "w"))
+    desc = infra.describe()
+    free = selector(infra, desc, Config(policy="surrogate", swap_t=0.0))
+    dear = selector(infra, desc, Config(policy="surrogate", swap_t=0.0, cost_table=path, cost_lambda=5.0))
+    assert dear.features(dear.ix(dear.select())) <= dear.features(dear.ix(free.select()))
+    a, b = free.ix(names[:2]), free.ix(names[:1])
+    n_a = len(set(table[names[0]]) | set(table[names[1]]))
+    assert dear.features(a) == n_a
+    assert np.isclose(dear.scorer()(a), free.scorer()(a) - 5.0 * n_a / 100)
+    g_free, se = free.gain(a, b)
+    g_dear, se2 = dear.gain(a, b)
+    assert se == se2 and np.isclose(g_dear, g_free - 5.0 * (n_a - len(table[names[0]])) / 100)
+
+
+def test_reveal_all_puts_every_prefitted_member_in_the_bank(tmp_path):
+    """reveal_all on a universe benchmark: before round 1, every recipe infra lists is trained (free)."""
+    import dataclasses
+    infra = FakeInfra(seed=4)
+    real = infra.describe
+    infra.describe = lambda: dataclasses.replace(real(), universe=True)
+    campaign.run(infra, Config(policy="surrogate", seed=3, rounds=1, models=2, reveal_all=True), str(tmp_path / "r"))
+    assert not infra.recipes()

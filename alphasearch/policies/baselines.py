@@ -10,8 +10,10 @@ class SurrogatePolicy:
         self.cfg = cfg
 
     def plan(self, obs, models, rng, log):
-        """The surrogate's Thompson draws over every untrained recipe."""
+        """The surrogate's Thompson draws over every untrained recipe (none left: a fully revealed bank)."""
         names = list(obs.untrained)
+        if not names:
+            return Plan.parse({"experiments": []})
         pick = [names[j] for j in obs.sur.thompson([obs.untrained[n] for n in names], models, rng=rng)]
         return Plan.parse({"experiments": [{"id": "s", "action": "train", "recipes": pick,
                                             "hypothesis": "surrogate Thompson draws"}]})

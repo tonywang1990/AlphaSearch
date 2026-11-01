@@ -10,6 +10,8 @@ campaign (`campaign.py`) calls them in order and the journal records what they f
     evaluate  F' = the search over the grown bank; the agent's ensemble adopted at ENSEMBLE_T;
               infra's sealed verdict on the test days for F' vs F and for each experiment alone
     record    the ledger rows (val facts, the verdicts sealed from the agent) and the round row"""
+import functools
+import json
 import os
 from dataclasses import dataclass, field
 
@@ -57,6 +59,14 @@ class Observation:
         self.untrained = {n: r for r in self.infra.recipes() if (n := name_of(r, self.desc.axes)) not in self.failed}
 
 
+@functools.lru_cache(maxsize=4)
+def _cost(path):
+    """The operator's cost table: member -> its served features (client names, `.s1` dropped)."""
+    if not path:
+        return None
+    return {k.removesuffix(".s1"): frozenset(v) for k, v in json.load(open(path)).items()}
+
+
 def selector(infra, desc, cfg):
     """The fixed selection over the bank. `ic_drift` selects on the mean IC over every label infra
     carries (10s/30s/60s on LU), weights fitted to the same target; `ic` on the fit label; any other
@@ -65,7 +75,8 @@ def selector(infra, desc, cfg):
     scfg = Cfg(k_max=desc.k_max, host=desc.host, corrector_w=cfg.corrector_w, swap_t=cfg.swap_t,
                objective="ic" if cfg.select_objective in ("ic", "ic_drift") else cfg.select_objective,
                wf_chunks=cfg.wf_chunks, worst_weight=cfg.worst_weight, weight_shrink=cfg.weight_shrink,
-               regime_cells=cfg.regime_cells, keep_reference=cfg.keep_reference)
+               regime_cells=cfg.regime_cells, keep_reference=cfg.keep_reference,
+               cost=_cost(cfg.cost_table), cost_lambda=cfg.cost_lambda)
     if scfg.objective == "wf":               # the SoM aggregator: fit + validation, walked forward
         agg = Stats(merge(infra.moments("fit"), infra.moments("validation")), labels)
         return Selector(agg, agg, scfg, infra)

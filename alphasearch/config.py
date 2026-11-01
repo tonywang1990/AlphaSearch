@@ -20,6 +20,9 @@ class Config:
     weight_shrink: float = 0.25            # wf: ridge toward equal weights (S + shrink * diag S)
     regime_cells: bool = False             # wf: + a cell per session on its least-reverting third of units
     keep_reference: bool = False           # every selected F keeps prod's legs (the search adds to the incumbent)
+    cost_table: str | None = None          # JSON {member: [served features]}: the operator's complexity model
+    cost_lambda: float = 0.0               # selection score lost per 100 served features (LU: ~1 µs per 100)
+    reveal_all: bool = False               # a universe benchmark: every pre-fitted member is in the bank at start (free)
     swap_t: float = SWAP_T                 # the swap/path-switch gate; 0 in frontier mode (§10.3)
     frontier: bool = False                 # re-pick F from prod over the whole bank every round (§10.5)
     sur_target: str = "marginal"           # marginal | best_swap (what the surrogate learns: §10.7)

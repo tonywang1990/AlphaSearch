@@ -37,6 +37,11 @@ def _setup(infra, cfg, out, desc, log, journal):
         mem = os.path.join(out, "memory.md")
         if not os.path.exists(mem):
             open(mem, "w").write(memory.render(desc.served, desc.symbol, cfg.memory_stores))
+    if cfg.reveal_all and desc.universe and not journal.iters:       # pre-fitted: revealing costs nothing
+        todo = infra.recipes()
+        if todo:
+            infra.train(todo)
+            log("reveal", f"{len(todo)} pre-fitted members")
     seen = experience.seen(cfg.experience)
     if cfg.frontier and cfg.experience and not journal.iters:   # the bank is everything this symbol
         carry = [r for r in infra.recipes() if name_of(r, desc.axes) in seen]   # trained: free, uncounted

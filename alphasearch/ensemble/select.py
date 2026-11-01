@@ -26,6 +26,8 @@ class Cfg:
     weight_shrink: float = 0.25
     regime_cells: bool = False
     keep_reference: bool = False   # the reference's legs stay in every selected set (anchored on the incumbent)
+    cost: dict | None = None       # member -> its served features (frozenset); a set costs their union
+    cost_lambda: float = 0.0       # score lost per 100 served features (the latency price of complexity)
 
 
 class Selector:
@@ -59,9 +61,25 @@ class Selector:
         return [self.val.idx[n] for n in names if n in self.val.idx]
 
     # -- the objective --------------------------------------------------------------------
+    def features(self, jj):
+        """The served features of a set: the union of its members' (its latency is their count)."""
+        return len(frozenset().union(*(self.cfg.cost[self.names[j]] for j in jj))) if self.cfg.cost else 0
+
+    def penalty(self, jj):
+        return self.cfg.cost_lambda * self.features(jj) / 100 if self.cfg.cost_lambda else 0.0
+
     def scorer(self, counts=None):
-        """f(jj) -> the selection score on the val days (`counts` weights them: IC only), with
-        `f.many(sets)`, one infra job for a whole batch on objectives with no moment form."""
+        """f(jj) -> the selection score on the val days (`counts` weights them: IC only) less the
+        set's complexity penalty, with `f.many(sets)`, one infra job for a whole batch on objectives
+        with no moment form."""
+        f = self._scorer(counts)
+        if not self.cfg.cost_lambda:
+            return f
+        g = lambda jj: f(jj) - self.penalty(jj)
+        g.many = lambda sets: [v - self.penalty(s) for v, s in zip(f.many(sets), sets, strict=True)]
+        return g
+
+    def _scorer(self, counts=None):
         if self.wf:
             assert counts is None, "walk-forward folds are the day weighting"
             f = lambda jj: self.wf.score(list(jj))
@@ -88,33 +106,40 @@ class Selector:
         """t(a, b): the paired val t of member set a over b."""
         if self.wf:
             def t(a, b):
-                g, se = self.wf.gain(list(a), list(b))
-                return g / se if se > 0 else 0.0
+                return self._t(*self.wf.gain(list(a), list(b)), a, b)
             return t
         if self.cfg.objective == "ic":
             ones = self.val.ones() if counts is None else counts
 
             def t(a, b):
-                g, se = paired(self.val, ones, self.blend(a), self.blend(b))
-                return g / se if se > 0 else 0.0
+                return self._t(*paired(self.val, ones, self.blend(a), self.blend(b)), a, b)
             return t
-        f, per = self.scorer(), dict(zip(map(str, self.val.days), self.val.period, strict=True))
+        f, per = self._scorer(), dict(zip(map(str, self.val.days), self.val.period, strict=True))
 
         def t(a, b):
             f.many([list(a), list(b)])
-            g, se = paired_daily(self._cache[frozenset(a)], self._cache[frozenset(b)], per)
-            return g / se if se else 0.0
+            return self._t(*paired_daily(self._cache[frozenset(a)], self._cache[frozenset(b)], per), a, b)
         return t
 
+    def _t(self, g, se, a, b):
+        """The paired t of a over b with the complexity price of the difference charged to the gain."""
+        g -= self.penalty(list(a)) - self.penalty(list(b))
+        return g / se if se and se > 0 else 0.0
+
     def gain(self, new, old):
-        """(gain, SE) of member set `new` over `old` on the val days; (0, 0) for the same set."""
+        """(gain, SE) of member set `new` over `old` on the val days, the complexity price of the
+        difference charged to the gain; (0, 0) for the same set."""
         if set(new) == set(old):
             return 0.0, 0.0
+        g, se = self._gain(new, old)
+        return g - (self.penalty(list(new)) - self.penalty(list(old))), se
+
+    def _gain(self, new, old):
         if self.wf:
             return self.wf.gain(list(new), list(old))
         if self.cfg.objective == "ic":
             return paired(self.val, self.val.ones(), self.blend(new), self.blend(old))
-        f, per = self.scorer(), dict(zip(map(str, self.val.days), self.val.period, strict=True))
+        f, per = self._scorer(), dict(zip(map(str, self.val.days), self.val.period, strict=True))
         f.many([list(new), list(old)])
         return paired_daily(self._cache[frozenset(new)], self._cache[frozenset(old)], per)
 
