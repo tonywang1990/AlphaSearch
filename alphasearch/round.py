@@ -67,6 +67,25 @@ def _cost(path):
     return {k.removesuffix(".s1"): frozenset(v) for k, v in json.load(open(path)).items()}
 
 
+def _costs(infra, desc, cfg):
+    """member -> served features: the operator's table, then each trained member's own report (a live campaign's
+    members exist only once trained). A sequence member (it serves NA inputs) also pays `seq_cost` pseudo-features for
+    its recurrence; the NA inputs it shares with other sequence legs are counted once by the union."""
+    if not cfg.cost_lambda:                # no price: no cost model (a set's features are not needed)
+        return None
+    table = dict(_cost(cfg.cost_table) or {})
+    for m in infra.models():
+        if m.name not in table:
+            seq = any(f.startswith("na::") for f in m.features)
+            table[m.name] = frozenset(m.features) | {f"SEQ::{m.name}::{i}" for i in range(cfg.seq_cost if seq else 0)}
+    unpriced = [n for n in [*desc.reference, *(m.name for m in infra.models())] if not table.get(n)]
+    if unpriced:
+        print(f"[cost] no served features known for {unpriced}: priced at 0", flush=True)
+    for n in unpriced:
+        table.setdefault(n, frozenset())
+    return table
+
+
 def selector(infra, desc, cfg):
     """The fixed selection over the bank. `ic_drift` selects on the mean IC over every label infra
     carries (10s/30s/60s on LU), weights fitted to the same target; `ic` on the fit label; any other
@@ -76,7 +95,7 @@ def selector(infra, desc, cfg):
                objective="ic" if cfg.select_objective in ("ic", "ic_drift") else cfg.select_objective,
                wf_chunks=cfg.wf_chunks, worst_weight=cfg.worst_weight, weight_shrink=cfg.weight_shrink,
                regime_cells=cfg.regime_cells, keep_reference=cfg.keep_reference,
-               cost=_cost(cfg.cost_table), cost_lambda=cfg.cost_lambda)
+               cost=_costs(infra, desc, cfg), cost_lambda=cfg.cost_lambda)
     if scfg.objective == "wf":               # the SoM aggregator: fit + validation, walked forward
         agg = Stats(merge(infra.moments("fit"), infra.moments("validation")), labels)
         return Selector(agg, agg, scfg, infra)
@@ -107,9 +126,10 @@ class Act:
     rows: list                    # one ledger row per experiment
     trained: list                 # every recipe trained this round
     failed: dict                  # recipe -> why it failed
+    seconds: dict                 # recipe -> what training it cost (live)
 
 
-def act(obs, plan, policy, models, rng):
+def act(obs, plan, policy, models, rng, until=None):
     picks, rows, left = {}, [], models
     for e in plan.experiments:
         p, facts = actions.realize(obs, e, left, rng)
@@ -124,9 +144,9 @@ def act(obs, plan, policy, models, rng):
         rows.append({"iteration": obs.it, "policy": policy.name, "id": "_fill", "action": "train", "n_features": 0,
                      "hypothesis": "unspent budget, surrogate Thompson draws", "trained": picks["_fill"]})
     trained = sorted({r for q in picks.values() for r in q})
-    _, bad = obs.infra.train([obs.untrained[n] for n in trained]) if trained else ([], {})
+    ready, bad = obs.infra.train([obs.untrained[n] for n in trained], until=until) if trained else ([], {})
     obs.failed |= set(bad)
-    return Act(picks=picks, rows=rows, trained=trained, failed=bad)
+    return Act(picks=picks, rows=rows, trained=trained, failed=bad, seconds={m.name: m.seconds for m in ready})
 
 
 def _verdict(infra, sel, new, old, log):
@@ -183,7 +203,7 @@ def record(journal, obs, plan, a, o, tools, policy, log, secs):
     row = {"iteration": obs.it, "policy": policy.name, "F": obs.F, "F_after": o.F_after,
            "F_val": obs.sel.scorer()(obs.sel.ix(obs.F)), "F_after_val": o.sel.scorer()(o.sel.ix(o.F_after)),
            "test_verdict": o.verdict, "trained": a.trained, "failed": sorted(a.failed), "bank": len(o.have),
-           "llm_usd": round(log.cost, 2), "secs": round(secs), "stop": plan.stop,
+           "llm_usd": round(log.cost, 2), "secs": round(secs), "stop": plan.stop, "train_seconds": a.seconds,
            "F_after_legs": o.sel.legs(o.sel.ix(o.F_after)),             # exactly what this round would serve
            **({"F_after_cells": o.sel.wf.table(o.sel.ix(o.F_after))} if o.sel.wf else {})}
     journal.add_round(a.rows + [{"iteration": obs.it, "lessons": plan.lessons, "tools": tools}], row)

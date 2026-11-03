@@ -18,6 +18,7 @@ class Plan:
     lessons: list = field(default_factory=list)
     tools: list = field(default_factory=list)         # [{"name", "path", "test"}] the agent wrote
     stop: bool = False
+    train: int | None = None                         # live: how many models the agent wants this round
 
     @classmethod
     def parse(cls, obj):
@@ -25,7 +26,7 @@ class Plan:
         obj = obj or {}
         return cls(experiments=list(obj.get("experiments") or [])[:MAX_EXPERIMENTS],
                    lessons=list(obj.get("lessons") or []), tools=list(obj.get("tools") or []),
-                   stop=bool(obj.get("stop")))
+                   stop=bool(obj.get("stop")), train=int(obj["train"]) if obj.get("train") is not None else None)
 
 
 def _jsonl(path):

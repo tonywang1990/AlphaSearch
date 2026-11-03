@@ -614,8 +614,17 @@
 ],
 "F_val": 1.843034323382537,
 "budget": {
+"compute_minutes_left": 16666667,
 "iterations_left": 1,
-"models_this_iteration": 6
+"live": true,
+"minutes_left": null,
+"minutes_per_model_by_arch": {
+"prior (nothing measured yet)": 40
+},
+"minutes_per_model_by_arch_and_feature_set": {},
+"models_this_iteration": 6,
+"parallel": 4,
+"unspent_is_saved": true
 },
 "host": null,
 "iteration": 1,
@@ -1460,8 +1469,17 @@
 ],
 "F_val": 3.726640432325162,
 "budget": {
+"compute_minutes_left": 16666667,
 "iterations_left": 1,
-"models_this_iteration": 6
+"live": true,
+"minutes_left": null,
+"minutes_per_model_by_arch": {
+"prior (nothing measured yet)": 40
+},
+"minutes_per_model_by_arch_and_feature_set": {},
+"models_this_iteration": 6,
+"parallel": 4,
+"unspent_is_saved": true
 },
 "host": null,
 "iteration": 1,
@@ -2058,8 +2076,17 @@
 ],
 "F_val": 1.9635585552732275,
 "budget": {
+"compute_minutes_left": 16666667,
 "iterations_left": 1,
-"models_this_iteration": 6
+"live": true,
+"minutes_left": null,
+"minutes_per_model_by_arch": {
+"prior (nothing measured yet)": 40
+},
+"minutes_per_model_by_arch_and_feature_set": {},
+"models_this_iteration": 6,
+"parallel": 4,
+"unspent_is_saved": true
 },
 "host": null,
 "iteration": 2,
@@ -2777,8 +2804,17 @@
 ],
 "F_val": 2.23294433713524,
 "budget": {
+"compute_minutes_left": 16666667,
 "iterations_left": 1,
-"models_this_iteration": 6
+"live": true,
+"minutes_left": null,
+"minutes_per_model_by_arch": {
+"prior (nothing measured yet)": 40
+},
+"minutes_per_model_by_arch_and_feature_set": {},
+"models_this_iteration": 6,
+"parallel": 4,
+"unspent_is_saved": true
 },
 "host": null,
 "iteration": 2,
