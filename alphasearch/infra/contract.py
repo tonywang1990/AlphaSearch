@@ -49,6 +49,7 @@ class Budget:
     verdicts_left: int
     deadline: float | None
     max_parallel: int
+    final_reserve: float = 0.0        # seconds held for infra's final gate (0 = none registered)
 
 
 @dataclass(frozen=True)

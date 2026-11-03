@@ -80,3 +80,18 @@ def test_a_budget_refusal_mid_round_ends_the_campaign_cleanly(tmp_path):
     campaign.run(infra, Config(policy="surrogate", rounds=5, models=3, seed=1), str(tmp_path / "c"))
     assert len(open(tmp_path / "c" / "iters.jsonl").readlines()) == 1
     assert json.load(open(tmp_path / "c" / "stop.json"))["reason"].startswith("budget or deadline")
+
+
+def test_a_campaign_with_a_registered_final_gate_hands_its_last_f_to_it(tmp_path):
+    """Infra's final gate runs once on the last round's F (weights as served); none registered, none run."""
+    infra = FakeInfra(seed=3)
+    real = infra.budget
+    infra.budget = lambda: Budget(**{**real().__dict__, "final_reserve": 3600})
+    seen = []
+    infra.final = lambda legs: seen.append(legs) or {"evaluate": {"verdicts": {"screen": {"verdict": "SCREEN_PASS"}}}}
+    campaign.run(infra, Config(policy="surrogate", rounds=1, models=3, seed=1), str(tmp_path / "f"))
+    rep = json.load(open(tmp_path / "f" / "final.json"))
+    assert len(seen) == 1 and rep["legs"] == [list(x) for x in seen[0]]
+    assert rep["evaluate"]["verdicts"]["screen"]["verdict"] == "SCREEN_PASS"
+    campaign.run(FakeInfra(seed=3), Config(policy="surrogate", rounds=1, models=3, seed=1), str(tmp_path / "g"))
+    assert not os.path.exists(tmp_path / "g" / "final.json")

@@ -66,7 +66,21 @@ class FutsInfra:
     def budget(self):
         b = self._call(self.r.budget)
         return Budget(seconds_left=b.seconds_left, verdicts_left=b.queries_left["verdict"],
-                      deadline=b.deadline, max_parallel=b.max_parallel)
+                      deadline=b.deadline, max_parallel=b.max_parallel, final_reserve=b.final_reserve_seconds)
+
+    def final(self, legs):
+        """Infra's final gate on `legs` [(client name, weight)]: freeze the candidate, evaluate it (three-period real
+        builds, Table 1, referee screen, CF gate), and when that completes build its recent target (forge + latency)."""
+        self._bank()
+        tm = self.api.TrainedModel
+        entry = lambda n: self._by_id[self._id[n]]          # noqa: E731
+        weights = [(tm(id=entry(n).id, seed=entry(n).seed, dates=entry(n).dates), float(w)) for n, w in legs]
+        cand = self._call(self.r.create_candidate, weights).candidate
+        ev = self._call(self.r.evaluate, cand)
+        out = {"candidate": cand.id, "evaluate": ev.model_dump(mode="json")}
+        if ev.status == "complete":
+            out["build"] = self._call(self.r.build, cand, target="recent").model_dump(mode="json")
+        return out
 
     def recipes(self, where=None):
         return [dict(r) for r in self._call(self.r.recipes, where)]

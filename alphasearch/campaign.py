@@ -75,6 +75,23 @@ def _stopped(out, rounds, why, log):
     json.dump({"rounds": rounds, "reason": why}, open(os.path.join(out, "stop.json"), "w"))
 
 
+def _final(infra, desc, out, journal, log):
+    """Infra's final gate on the last round's F, once, when the campaign registered one (a live campaign's
+    reserve is held out of the search budget, and its deadline leaves the time)."""
+    path = os.path.join(out, "final.json")
+    if desc.universe or not journal.iters or os.path.exists(path) or not infra.budget().final_reserve:
+        return
+    legs = [(n, w) for n, w in journal.iters[-1]["F_after_legs"]]
+    try:
+        rep = infra.final(legs)
+    except ApiError as e:
+        rep = {"error": f"{e.code}: {e.message}"}
+    rep["legs"] = legs
+    json.dump(rep, open(path, "w"), indent=1, default=str)
+    verdicts = {k: v.get("verdict") for k, v in (rep.get("evaluate") or {}).get("verdicts", {}).items()}
+    log("final", f"{verdicts or rep.get('error')}; build {'done' if rep.get('build') else 'not run'}")
+
+
 def run(infra, cfg, out):
     desc = infra.describe()
     check_version(desc)
@@ -132,4 +149,5 @@ def run(infra, cfg, out):
                                eval_report=ev)
         if cfg.experience:
             experience.add(cfg.experience, ep)
+    _final(infra, desc, out, journal, log)
     return out
