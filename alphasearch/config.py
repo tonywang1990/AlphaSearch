@@ -10,8 +10,8 @@ ENSEMBLE_T = 2.0   # the agent's own ensemble must beat the frontier's pick at p
 @dataclass(frozen=True)
 class Config:
     policy: str = "agent"                  # who decides what to train: agent | surrogate | random
-    rounds: int = 6                        # rounds per campaign
-    models: int = 16                       # models trained per round (carried models are free)
+    rounds: int = 6                        # rounds per campaign (a live campaign: a safety cap, it paces itself)
+    models: int = 16                       # models trained per round at most (carried models are free)
     seed: int = 0                          # the run's rng: baseline draws, Thompson, the fill
     # the fixed search
     select_objective: str = "ic"           # ic (fit label) | ic_drift (IC10/30/60: §10.2) | wf | infra
@@ -22,6 +22,12 @@ class Config:
     keep_reference: bool = False           # every selected F keeps prod's legs (the search adds to the incumbent)
     cost_table: str | None = None          # JSON {member: [served features]}: the operator's complexity model
     cost_lambda: float = 0.0               # selection score lost per 100 served features (LU: ~1 µs per 100)
+    seq_cost: int = 177                    # a sequence leg's recurrence beyond its NA inputs, in features (SC h64 GRU)
+    # a live campaign's pacing (pacing.py): it ends on the agent's stop, a plateau, the deadline or the budget
+    plateau_rounds: int = 2                # rounds a plateau is judged over
+    plateau_gain: float = 0.002            # less val gain than this over them, and no better verdict = plateau
+    final_reserve_min: float = 45          # minutes kept before the deadline for the final pick and report
+    model_minutes: float = 40              # a model's cost before this campaign has measured one (SC: 35-40)
     reveal_all: bool = False               # a universe benchmark: every pre-fitted member is in the bank at start (free)
     swap_t: float = SWAP_T                 # the swap/path-switch gate; 0 in frontier mode (§10.3)
     frontier: bool = False                 # re-pick F from prod over the whole bank every round (§10.5)

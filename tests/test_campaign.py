@@ -198,3 +198,19 @@ def test_reveal_all_puts_every_prefitted_member_in_the_bank(tmp_path):
     infra.describe = lambda: dataclasses.replace(real(), universe=True)
     campaign.run(infra, Config(policy="surrogate", seed=3, rounds=1, models=2, reveal_all=True), str(tmp_path / "r"))
     assert not infra.recipes()
+
+
+def test_live_members_are_priced_by_what_they_serve():
+    """A live campaign has no cost table for its members: each is priced by the features infra reports it serves,
+    a sequence member (NA inputs) plus seq_cost for its recurrence; NA inputs shared by two seq legs count once."""
+    from types import SimpleNamespace
+
+    from alphasearch.infra.contract import Model
+    from alphasearch.round import _costs
+    models = [Model("lin", {}, "1", ("a", "b")), Model("gru1", {}, "2", ("na::x", "na::y")),
+              Model("gru2", {}, "3", ("na::x", "na::y")), Model("bare", {}, "4")]
+    infra = SimpleNamespace(models=lambda: models)
+    cost = _costs(infra, SimpleNamespace(reference=["prod"]), Config(cost_lambda=1.0, seq_cost=3))
+    assert cost["lin"] == {"a", "b"} and len(cost["gru1"]) == 5 and cost["prod"] == cost["bare"] == frozenset()
+    assert len(cost["gru1"] | cost["gru2"]) == 8                       # 2 shared NA inputs + 3 + 3
+    assert _costs(infra, SimpleNamespace(reference=[]), Config()) is None

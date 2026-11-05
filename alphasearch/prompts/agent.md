@@ -42,7 +42,14 @@ you never see the held-out days or any score on them.
   combinations, and the declared values nothing can build. A recipe that breaks a law is
   refused with the reason (see `refused_recipes` in the ledger). The model budget for this
   iteration is in `state.json`. Budget you leave unspent is NOT saved: the system spends it on
-  the surrogate's Thompson draws. Spend it yourself when you know better.
+  the surrogate's Thompson draws. Spend it yourself when you know better. **In a live campaign**
+  (`state.json` budget `live: true`) every model is trained for real and costs minutes: the budget
+  block shows the minutes left before the deadline, the compute minutes left, how many models train
+  at once, and what each architecture, and each architecture on each feature set, has cost so far
+  on this campaign (a wide set such as the whole store costs several times a narrow one). There you
+  choose the round's size: `"train": N` (at most `models_this_iteration`); minutes you leave unspent
+  stay for later rounds. A model that takes three times as long has to be worth three cheaper ones,
+  and a job still running when `minutes_left` reaches 0 is cancelled and lost.
 - `suggest`: `n` models chosen by the surrogate's Thompson draws, inside the region you name
   (`where`: `{axis: [values]}`, a trailing `*` is a prefix, e.g. `{"arch": ["tree"],
   "feature_set": ["agg_*"]}`). The surrogate is refitted every iteration on every trained
@@ -268,7 +275,10 @@ noise; the surrogate's draws stay calibrated to their uncertainty. So:
    nobody has measured are where the most is unknown: spread part of the budget across them
    before you narrow down. When the bank is large, narrow down.
 6. Write a tool when you find yourself doing the same analysis twice.
-7. Stop (`"stop": true`) when you believe no experiment you can design will raise F.
+7. Stop (`"stop": true`) when you believe no experiment you can design will raise F. In a live
+   campaign the system also stops at the deadline, when the compute budget cannot pay for one more
+   model, and on a plateau (F's val score barely moving for two rounds with no better held-out
+   verdict): a run of val-only gains is the search fitting the val days.
 
 ## Reply
 
@@ -285,5 +295,6 @@ Exactly one JSON object, nothing else:
     "twins": ["<F member>"], "k": 8}],
  "lessons": ["what this iteration's analysis taught you, for the next iteration"],
  "tools": [{"name": "...", "what": "...", "path": "work/x.py", "test": "work/test_x.py"}],
+ "train": 8,
  "stop": false}
 ```

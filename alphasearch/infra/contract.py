@@ -49,6 +49,7 @@ class Budget:
     verdicts_left: int
     deadline: float | None
     max_parallel: int
+    final_reserve: float = 0.0        # seconds held for infra's final gate (0 = none registered)
 
 
 @dataclass(frozen=True)
@@ -56,6 +57,8 @@ class Model:
     name: str                         # the recipe's name (axis values joined by ".")
     recipe: dict[str, str]
     id: str                           # infra's handle
+    features: tuple[str, ...] = ()    # what it serves at its latest refit (live infra 1.3+); () when unknown
+    seconds: float = 0.0              # what training it cost (live; 0 = cached or revealed)
 
 
 @dataclass(frozen=True)
@@ -96,7 +99,8 @@ class Infra(Protocol):
     def budget(self) -> Budget: ...
     def recipes(self, where: dict | None = None) -> list[dict[str, str]]: ...
     def validate(self, recipes: list[dict[str, str]]) -> dict[str, str | None]: ...
-    def train(self, recipes: list[dict[str, str]]) -> tuple[list[Model], dict[str, str]]: ...
+    def train(self, recipes: list[dict[str, str]],
+              until: float | None = None) -> tuple[list[Model], dict[str, str]]: ...
     def models(self) -> list[Model]: ...
     def moments(self, block: Literal["fit", "validation"]) -> Moments: ...
     def score_many(self, sets: list[list[tuple[str, float]]], objective: str, cell: str | None = None) -> list[Scored]:

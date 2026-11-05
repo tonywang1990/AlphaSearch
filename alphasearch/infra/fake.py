@@ -93,7 +93,7 @@ class FakeInfra:
                 a[int(c[1:])] += 0.8
         return a
 
-    def train(self, recipes):
+    def train(self, recipes, until=None):
         ready, failed = [], {}
         for r in recipes:
             n = name_of(r, self.axes)
