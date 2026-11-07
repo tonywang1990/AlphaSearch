@@ -1,5 +1,6 @@
 """The session viewer builds every campaign's tree: rounds in order, the seven phases in each, one act
 child per experiment, and a page whose embedded data parses back."""
+
 import json
 import re
 
@@ -17,7 +18,7 @@ def test_the_viewer_shows_every_round_and_phase(tmp_path):
     rounds = [n for n in c["c"] if n["k"] == "round"]
     assert [r["t"] for r in rounds] == ["Round 0", "Round 1", "Round 2"]
     assert all(tuple(p["t"] for p in r["c"]) == PHASES for r in rounds)
-    assert all(p["s"].endswith("s") for p in rounds[0]["c"])                 # each phase's wall time
+    assert all(p["s"].endswith("s") for p in rounds[0]["c"])  # each phase's wall time
     ledger = [json.loads(x) for x in open(f"{out}/ledger.jsonl")]
     assert len(rounds[0]["c"][3]["c"]) == sum(1 for r in ledger if r["iteration"] == 0 and "action" in r)
     page = open(write([out], str(tmp_path / "v.html"))).read()

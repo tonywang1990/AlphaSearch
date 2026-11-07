@@ -3,6 +3,7 @@
 The moments of ANY day subset (a period, a split half, a bootstrap resample with repeats) are
 a weighted sum of per-unit sums, so a blend's IC and its paired day-by-day test cost K x K
 algebra, never a pass over ticks. Day-level calls take `counts`, one weight per day."""
+
 import numpy as np
 
 from alphasearch.infra.contract import Moments
@@ -150,7 +151,8 @@ def paired_daily(a, b, period_of):
     days = sorted(set(a.daily) & set(b.daily))
     d = np.array([a.daily[x] - b.daily[x] for x in days])
     per = np.array([period_of.get(x, 0) for x in days])
-    ses = [float(np.std(d[per == k], ddof=1) / np.sqrt((per == k).sum()))
-           for k in np.unique(per) if (per == k).sum() >= 3]
+    ses = [
+        float(np.std(d[per == k], ddof=1) / np.sqrt((per == k).sum())) for k in np.unique(per) if (per == k).sum() >= 3
+    ]
     se = float(np.sqrt(np.sum(np.square(ses))) / len(ses)) if ses else float("nan")
     return a.value - b.value, se

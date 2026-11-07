@@ -3,6 +3,7 @@ trajectory on the left (campaign > round > phase > session turn or experiment), 
 input, processing and output on the right. Owner-side: it shows the sealed test verdicts.
 
     python -m alphasearch view <campaign dir> [...] -o view.html"""
+
 import json
 import os
 

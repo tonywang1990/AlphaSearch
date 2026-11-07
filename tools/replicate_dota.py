@@ -8,6 +8,7 @@ FUTS_CAMPAIGNS=... PYTHONPATH=<alphasearch> <venv>/bin/python tools/replicate_do
     --ref /qr_scratch/tony/dota/agent/LU_EIs0 --policy surrogate --seed 0 --snapshot ... --out runs/
     [--register <register_universe_benchmark.py>] [--reference NAME:W ...]
 """
+
 import argparse
 import json
 import os
@@ -27,6 +28,7 @@ def _rows(path):
 def owner_scores(campaign):
     """{(frozenset child, frozenset parent): (child score, parent score)} from the verdict jobs."""
     from lib.api.registration import identity
+
     root = Path(os.environ["FUTS_CAMPAIGNS"]) / identity(campaign)
     out, one = {}, {}
     for job in (root / "jobs").glob("*/job.json"):
@@ -37,7 +39,7 @@ def owner_scores(campaign):
             pay = rec["payload"]
             child, parent = (frozenset(n for n, _ in pay[k]) for k in ("subject", "compare_to"))
             out[(child, parent)] = (m["child"], m["parent"], m["verdict"])
-            one[child], one[parent] = m["child"], m["parent"]   # a set's own score, whatever it was compared to
+            one[child], one[parent] = m["child"], m["parent"]  # a set's own score, whatever it was compared to
     return out, one
 
 
@@ -50,12 +52,19 @@ def compare(ref_dir, out, campaign, seed_suffix=".s1"):
     for a, b in zip(ref, ours, strict=False):
         key = (infra(b["F_after"]), infra(b["F"]))
         child, parent, word = scores.get(key, (one.get(key[0]), one.get(key[1]), b["test_verdict"]))
-        rows.append(dict(
-            iteration=a["iteration"], same_F={n + seed_suffix for n in b["F"]} == set(a["F"]),
-            same_F_after={n + seed_suffix for n in b["F_after"]} == set(a["F_after"]),
-            same_trained={n + seed_suffix for n in b["trained"]} == set(a["trained"]),
-            dota_test=a["F_test"], ours_test=parent, dota_after_test=a["F_after_test"], ours_after_test=child,
-            verdict=word))
+        rows.append(
+            dict(
+                iteration=a["iteration"],
+                same_F={n + seed_suffix for n in b["F"]} == set(a["F"]),
+                same_F_after={n + seed_suffix for n in b["F_after"]} == set(a["F_after"]),
+                same_trained={n + seed_suffix for n in b["trained"]} == set(a["trained"]),
+                dota_test=a["F_test"],
+                ours_test=parent,
+                dota_after_test=a["F_after_test"],
+                ours_after_test=child,
+                verdict=word,
+            )
+        )
     return rows
 
 
@@ -77,14 +86,36 @@ def main():
     a = p.parse_args()
     name = a.name or f"replay/{Path(a.ref).name}"
     from lib.api.registration import identity
+
     if not (Path(os.environ["FUTS_CAMPAIGNS"]) / identity(name)).exists():
-        subprocess.run([sys.executable, "-I", a.register, "register", "--snapshot", a.snapshot, "--name", name,
-                        *[x for r in a.reference for x in ("--reference", r)],
-                        *(["--ingredients", a.ingredients] if a.ingredients else []),
-                        *(["--k-max", str(a.k_max)] if a.k_max else [])], check=True)
+        subprocess.run(
+            [
+                sys.executable,
+                "-I",
+                a.register,
+                "register",
+                "--snapshot",
+                a.snapshot,
+                "--name",
+                name,
+                *[x for r in a.reference for x in ("--reference", r)],
+                *(["--ingredients", a.ingredients] if a.ingredients else []),
+                *(["--k-max", str(a.k_max)] if a.k_max else []),
+            ],
+            check=True,
+        )
     out = os.path.join(a.out, Path(a.ref).name)
-    cfg = Config(**{"policy": a.policy, "seed": a.seed, "rounds": a.iters, "models": a.models,
-                    "select_objective": "ic", "swap_t": 2.0, **json.loads(a.extra)})
+    cfg = Config(
+        **{
+            "policy": a.policy,
+            "seed": a.seed,
+            "rounds": a.iters,
+            "models": a.models,
+            "select_objective": "ic",
+            "swap_t": 2.0,
+            **json.loads(a.extra),
+        }
+    )
     campaign.run(FutsInfra(name), cfg, out)
     rows = compare(a.ref, out, name)
     json.dump(rows, open(os.path.join(out, "replication.json"), "w"), indent=1)

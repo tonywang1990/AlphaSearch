@@ -4,14 +4,16 @@ ensemble search as the agent's honest estimates. Members are indices into the va
 
 The selection objective is the IC from moments by default (SoM ADR 0008 selects on IC); an
 objective with no moment form (ev, evf) is scored by infra in batches (`Infra.score_many`)."""
+
 from dataclasses import dataclass
 
 import numpy as np
 
 from alphasearch.ensemble.moments import Stats, fit_weights, paired, paired_daily, score
 from alphasearch.ensemble.walkforward import WalkForward
+from alphasearch.infra.contract import Infra
 
-SWAP_T = 2.0      # LU: unmargined swaps chosen on half the val days lost 0.06 on the other half
+SWAP_T = 2.0  # LU: unmargined swaps chosen on half the val days lost 0.06 on the other half
 
 
 @dataclass(frozen=True)
@@ -20,26 +22,29 @@ class Cfg:
     host: str | None = None
     corrector_w: float = 0.5
     swap_t: float = SWAP_T
-    objective: str = "ic"          # ic (moments) | wf (walk-forward cells: walkforward.py) | infra
+    objective: str = "ic"  # ic (moments) | wf (walk-forward cells: walkforward.py) | infra
     wf_chunks: int = 4
     worst_weight: float = 0.5
     weight_shrink: float = 0.25
     regime_cells: bool = False
-    keep_reference: bool = False   # the reference's legs stay in every selected set (anchored on the incumbent)
-    cost: dict | None = None       # member -> its served features (frozenset); a set costs their union
-    cost_lambda: float = 0.0       # score lost per 100 served features (the latency price of complexity)
+    keep_reference: bool = False  # the reference's legs stay in every selected set (anchored on the incumbent)
+    cost: dict | None = None  # member -> its served features (frozenset); a set costs their union
+    cost_lambda: float = 0.0  # score lost per 100 served features (the latency price of complexity)
 
 
 class Selector:
-    def __init__(self, val: Stats, fit: Stats, cfg: Cfg, infra=None):
+    def __init__(self, val: Stats, fit: Stats, cfg: Cfg, infra: Infra | None = None):
         self.val, self.fit, self.cfg, self.infra = val, fit, cfg, infra
         self.names = val.names
         cf, Sf = fit.moments(fit.ones())
         self.fit_order = [fit.idx[n] for n in self.names]
         self.c_fit, self.S_fit = cf[self.fit_order], Sf[np.ix_(self.fit_order, self.fit_order)]
         self._cache = {}
-        self.wf = (WalkForward(val, cfg.wf_chunks, cfg.worst_weight, cfg.weight_shrink, cfg.regime_cells)
-                   if cfg.objective == "wf" else None)
+        self.wf = (
+            WalkForward(val, cfg.wf_chunks, cfg.worst_weight, cfg.weight_shrink, cfg.regime_cells)
+            if cfg.objective == "wf"
+            else None
+        )
 
     # -- blends ---------------------------------------------------------------------------
     def weights(self, jj):
@@ -80,9 +85,9 @@ class Selector:
         return g
 
     def _scorer(self, counts=None):
-        if self.wf:
+        if (wf := self.wf) is not None:
             assert counts is None, "walk-forward folds are the day weighting"
-            f = lambda jj: self.wf.score(list(jj))
+            f = lambda jj: wf.score(list(jj))
             f.many = lambda sets: [f(s) for s in sets]
             return f
         if self.cfg.objective == "ic":
@@ -92,37 +97,48 @@ class Selector:
             return f
         assert counts is None, f"day weights need the moment form; {self.cfg.objective} has none"
 
+        infra = self.infra
+        assert infra is not None, "infra objectives require an Infra implementation"
+
         def many(sets):
             todo = [s for s in sets if frozenset(s) not in self._cache]
-            for s, r in zip(todo, self.infra.score_many([self.legs(s) for s in todo], self.cfg.objective)
-                            if todo else [], strict=True):
+            for s, r in zip(
+                todo, infra.score_many([self.legs(s) for s in todo], self.cfg.objective) if todo else [], strict=True
+            ):
                 self._cache[frozenset(s)] = r
             return [self._cache[frozenset(s)].value for s in sets]
+
         f = lambda jj: many([list(jj)])[0]
         f.many = many
         return f
 
     def t(self, counts=None):
         """t(a, b): the paired val t of member set a over b."""
-        if self.wf:
+        if (wf := self.wf) is not None:
+
             def t(a, b):
-                return self._t(*self.wf.gain(list(a), list(b)), a, b)
+                return self._t(*wf.gain(list(a), list(b)), a, b)
+
             return t
         if self.cfg.objective == "ic":
             ones = self.val.ones() if counts is None else counts
 
             def t(a, b):
                 return self._t(*paired(self.val, ones, self.blend(a), self.blend(b)), a, b)
+
             return t
         f, per = self._scorer(), dict(zip(map(str, self.val.days), self.val.period, strict=True))
 
         def t(a, b):
             f.many([list(a), list(b)])
             return self._t(*paired_daily(self._cache[frozenset(a)], self._cache[frozenset(b)], per), a, b)
+
         return t
 
     def _t(self, g, se, a, b):
         """The paired t of a over b with the complexity price of the difference charged to the gain."""
+        if set(a) == set(b):
+            return 0.0
         g -= self.penalty(list(a)) - self.penalty(list(b))
         return g / se if se and se > 0 else 0.0
 
@@ -168,12 +184,12 @@ class Selector:
         cur, now = list(cur), f(list(cur))
         for _ in range(rounds):
             moves = [(i, j) for i in range(len(cur)) if cur[i] not in keep for j in pool if j not in cur]
-            vals = f.many([cur[:i] + cur[i + 1:] + [j] for i, j in moves])
+            vals = f.many([cur[:i] + cur[i + 1 :] + [j] for i, j in moves])
             took = False
             for v, (i, j) in sorted(zip(vals, moves, strict=True), key=lambda x: -np.nan_to_num(x[0], nan=-9))[:50]:
                 if not v > now:
                     break
-                new = cur[:i] + cur[i + 1:] + [j]
+                new = cur[:i] + cur[i + 1 :] + [j]
                 if gate is None or gate(new, cur):
                     cur, now, took = new, v, True
                     break
@@ -192,13 +208,26 @@ class Selector:
         f, t = self.scorer(counts), self.t(counts)
         pool = self.pool(exclude)
         host = (self.val.idx[self.cfg.host],) if self.cfg.host else ()
-        if self.cfg.keep_reference:            # never left by a swap, like the host
+        if self.cfg.keep_reference:  # never left by a swap, like the host
             host += tuple(j for j, _ in self.val.ref if j not in host)
-        sets = [host] + [host + tuple(j for j in self.ix(s) if j not in host)[:self.cfg.k_max - len(host)]
-                         for s in starts if s and all(n in self.val.idx for n in s)]
-        got = [self.swap(self.greedy(pool, f, start=st), pool, f, self.cfg.k_max, keep=host,
-                         gate=lambda a, b: t(a, b) >= self.cfg.swap_t) for st in sets]
-        best = max(got, key=lambda s: np.nan_to_num(f(s), nan=-9))
+        sets = [host] + [
+            host + tuple(j for j in self.ix(s) if j not in host)[: self.cfg.k_max - len(host)]
+            for s in starts
+            if s and all(n in self.val.idx for n in s)
+        ]
+        got = [
+            self.swap(
+                self.greedy(pool, f, start=st),
+                pool,
+                f,
+                self.cfg.k_max,
+                keep=host,
+                gate=lambda a, b: t(a, b) >= self.cfg.swap_t,
+            )
+            for st in sets
+        ]
+        # Equivalent member sets must tie even when BLAS rounds their permutations differently.
+        best = max(got, key=lambda s: np.nan_to_num(f(sorted(s)), nan=-9))
         if len(got) > 1 and best is not got[1] and t(best, got[1]) < self.cfg.swap_t:
             best = got[1]
         return [self.names[j] for j in best]
@@ -218,9 +247,13 @@ class Selector:
             without = fb(self.ix(self.select([base], exclude=set(recent), counts=h[a])))
             latest.append(with_ - without)
             bank.append(with_ - (fb(self.ix(base)) if base else 0.0))
-        return {"latest_models_value": float(np.mean(latest)), "latest_folds": [round(x, 5) for x in latest],
-                "bank_value": float(np.mean(bank)), "bank_folds": [round(x, 5) for x in bank],
-                "n_recent": len(recent)}
+        return {
+            "latest_models_value": float(np.mean(latest)),
+            "latest_folds": [round(x, 5) for x in latest],
+            "bank_value": float(np.mean(bank)),
+            "bank_folds": [round(x, 5) for x in bank],
+            "n_recent": len(recent),
+        }
 
     def search(self, F, starts=8, seed=0, top=3):
         """Local search over ENSEMBLES from empty, F and `starts` random sets, swapped to a val
@@ -233,10 +266,12 @@ class Selector:
 
         def run(counts, with_f=True):
             f = self.scorer(counts)
-            inits = [[]] + ([Fj] if with_f else []) + [list(rng.choice(pool, k, replace=False))
-                                                       for _ in range(starts)]
-            return [self.swap(self.greedy(pool, f, start=s) if len(s) < k else list(s), pool, f,
-                              4 * self.cfg.k_max) for s in inits], f
+            inits = [[]] + ([Fj] if with_f else []) + [list(rng.choice(pool, k, replace=False)) for _ in range(starts)]
+            return [
+                self.swap(self.greedy(pool, f, start=s) if len(s) < k else list(s), pool, f, 4 * self.cfg.k_max)
+                for s in inits
+            ], f
+
         got, f = run(None)
         h, held = self.val.halves(), []
         for a, b in ((0, 1), (1, 0)):
@@ -248,13 +283,22 @@ class Selector:
             if frozenset(jj) in seen:
                 continue
             seen.add(frozenset(jj))
-            rows.append({"members": [self.names[j] for j in jj], "val": round(float(f(jj)), 5),
-                         "t_vs_F": round(float(t(jj, Fj)), 2), "shares_with_F": len(set(jj) & set(Fj))})
+            rows.append(
+                {
+                    "members": [self.names[j] for j in jj],
+                    "val": round(float(f(jj)), 5),
+                    "t_vs_F": round(float(t(jj, Fj)), 2),
+                    "shares_with_F": len(set(jj) & set(Fj)),
+                }
+            )
             if len(rows) == top:
                 break
-        return {"F_val": round(float(f(Fj)), 5), "sets": rows,
-                "held_out_gain_of_searching": round(float(np.mean(held)), 5),
-                "held_out_folds": [round(float(x), 5) for x in held]}
+        return {
+            "F_val": round(float(f(Fj)), 5),
+            "sets": rows,
+            "held_out_gain_of_searching": round(float(np.mean(held)), 5),
+            "held_out_folds": [round(float(x), 5) for x in held],
+        }
 
     def learn(self, F, target="marginal"):
         """(gains, swaps, F's score, the surrogate's target): every trained member's marginal gain to
@@ -267,12 +311,16 @@ class Selector:
         others = [j for j, n in enumerate(self.names) if n != self.cfg.host and j not in Fj]
         drop = dict(zip(Fj, f.many([[x for x in Fj if x != j] for j in Fj]), strict=True))
         add = dict(zip(others, f.many([Fj + [j] for j in others]), strict=True))
-        gains = {n: base - drop[j] if j in drop else add[j] - base
-                 for j, n in enumerate(self.names) if n != self.cfg.host}
+        gains = {
+            n: base - drop[j] if j in drop else add[j] - base for j, n in enumerate(self.names) if n != self.cfg.host
+        }
         swaps = {}
         for j in others:
-            ok = [(x, self.names[Fj[i]]) for i, x in enumerate(f.many([Fj[:i] + Fj[i + 1:] + [j]
-                                                                      for i in range(len(Fj))])) if np.isfinite(x)]
+            ok = [
+                (x, self.names[Fj[i]])
+                for i, x in enumerate(f.many([Fj[:i] + Fj[i + 1 :] + [j] for i in range(len(Fj))]))
+                if np.isfinite(x)
+            ]
             swaps[self.names[j]] = (max(ok)[0] - base, max(ok)[1]) if ok else (float("nan"), None)
         y = gains
         if target == "best_swap" and len(Fj) >= self.cfg.k_max:

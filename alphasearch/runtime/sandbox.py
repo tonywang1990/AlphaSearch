@@ -1,5 +1,6 @@
 """The agent's own code runs here and nowhere else: bwrap, the workspace read-only but `work/`, the
 tool library, no network, no repo, no data beyond the workspace's summaries."""
+
 import os
 import shutil
 import subprocess
@@ -9,12 +10,42 @@ import sys
 def sandbox(ws, script, args, lib=None, timeout=900):
     """(exit code, output) of the agent's `script` under bwrap."""
     env = sys.prefix
-    base = sys.base_prefix                              # a venv's bin/python links into its base env
-    cmd = ["bwrap", "--ro-bind", "/usr", "/usr", "--ro-bind", "/lib", "/lib",
-           "--ro-bind", "/lib64", "/lib64", "--ro-bind", base, base, "--ro-bind", env, env, "--proc", "/proc",
-           "--dev", "/dev", "--tmpfs", "/tmp", "--unshare-all", "--die-with-parent",
-           "--ro-bind", os.path.abspath(ws), "/ws",
-           "--bind", os.path.abspath(os.path.join(ws, "work")), "/ws/work", "--chdir", "/ws"]
+    base = sys.base_prefix  # a venv's bin/python links into its base env
+    cmd = [
+        "bwrap",
+        "--ro-bind",
+        "/usr",
+        "/usr",
+        "--ro-bind",
+        "/lib",
+        "/lib",
+        "--ro-bind",
+        "/lib64",
+        "/lib64",
+        "--proc",
+        "/proc",
+        "--dev",
+        "/dev",
+        "--tmpfs",
+        "/tmp",
+        # Mount Python after /tmp: uv environments may themselves live under /tmp.
+        "--ro-bind",
+        base,
+        base,
+        "--ro-bind",
+        env,
+        env,
+        "--unshare-all",
+        "--die-with-parent",
+        "--ro-bind",
+        os.path.abspath(ws),
+        "/ws",
+        "--bind",
+        os.path.abspath(os.path.join(ws, "work")),
+        "/ws/work",
+        "--chdir",
+        "/ws",
+    ]
     if lib and os.path.isdir(lib):
         cmd += ["--ro-bind", lib, "/lib_tools"]
     cmd += ["--setenv", "OMP_NUM_THREADS", "4", os.path.join(env, "bin", "python"), script, *args]
@@ -31,8 +62,12 @@ def accept_tools(ws, lib, tools, log):
     out = []
     for t in tools or []:
         path, test = t.get("path", ""), t.get("test", "")
-        if not (path.startswith("work/") and test.startswith("work/")
-                and os.path.exists(os.path.join(ws, path)) and os.path.exists(os.path.join(ws, test))):
+        if not (
+            path.startswith("work/")
+            and test.startswith("work/")
+            and os.path.exists(os.path.join(ws, path))
+            and os.path.exists(os.path.join(ws, test))
+        ):
             out.append({**t, "accepted": False, "why": "path and test must be files under work/"})
             continue
         code, txt = sandbox(ws, test, [], lib)

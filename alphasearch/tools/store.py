@@ -1,4 +1,5 @@
 """Tools over the raw store columns: infra computes them on the val rows (the rows never leave it)."""
+
 import json
 import os
 import re
@@ -18,8 +19,9 @@ def _check(obs, want):
 def pcorr(obs, args):
     rx = re.compile(args[0]) if args else re.compile(".")
     want = [c for c in obs.columns if rx.search(c)]
-    return _check(obs, want) or obs.infra.pcorr(want, obs.sel.legs(obs.sel.ix(obs.F)),
-                                                cell=(opt(args, "--cell") or [None])[0])
+    return _check(obs, want) or obs.infra.pcorr(
+        want, obs.sel.legs(obs.sel.ix(obs.F)), cell=(opt(args, "--cell") or [None])[0]
+    )
 
 
 @tool("screen <file.json | column ...>", "the R² a column set adds over F out of day, vs same-size random sets")

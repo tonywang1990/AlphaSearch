@@ -5,6 +5,7 @@ only: no test verdict, no row, no date appears in any file.
 The workspace is the list PROVIDERS, in order; each provider writes its files for the round. To
 add context (or remove it for an ablation) add or drop a provider here and say what it is in the
 brief."""
+
 import json
 import os
 import shutil
@@ -22,13 +23,25 @@ def _json(ws, name, obj):
 def state(obs, ctx):
     """state.json: the round, the objective, F and its val score next to prod's, the budget."""
     sel, f = obs.sel, obs.sel.scorer()
-    _json(obs.ws, "state.json", {
-        "iteration": obs.it, "objective": obs.desc.objective, "val_numbers_in": obs.cfg.select_objective,
-        "swap_t": sel.cfg.swap_t, "k_max": sel.cfg.k_max, "budget": ctx["budget"],
-        "F": [{"member": n, "weight": round(float(x), 4)} for n, x in sel.legs(sel.ix(obs.F))],
-        "F_val": f(sel.ix(obs.F)), "prod_val": f(sel.ix(obs.ref)) if obs.ref else None, "host": sel.cfg.host,
-        "note": "scores are ratios to the prod reference (1.0 = prod) averaged over periods"
-        if obs.ref else f"scores are the raw {obs.desc.objective}"})
+    _json(
+        obs.ws,
+        "state.json",
+        {
+            "iteration": obs.it,
+            "objective": obs.desc.objective,
+            "val_numbers_in": obs.cfg.select_objective,
+            "swap_t": sel.cfg.swap_t,
+            "k_max": sel.cfg.k_max,
+            "budget": ctx["budget"],
+            "F": [{"member": n, "weight": round(float(x), 4)} for n, x in sel.legs(sel.ix(obs.F))],
+            "F_val": f(sel.ix(obs.F)),
+            "prod_val": f(sel.ix(obs.ref)) if obs.ref else None,
+            "host": sel.cfg.host,
+            "note": "scores are ratios to the prod reference (1.0 = prod) averaged over periods"
+            if obs.ref
+            else f"scores are the raw {obs.desc.objective}",
+        },
+    )
 
 
 def diagnosis(obs, ctx):
@@ -46,8 +59,14 @@ def grammar(obs, ctx):
 def ledger(obs, ctx):
     """ledger.json (val fields only) and bank_top.json (the top 40 by marginal gain)."""
     _json(obs.ws, "ledger.json", ctx["journal"].visible())
-    _json(obs.ws, "bank_top.json", [{"member": n, "marginal_val_gain": round(float(g), 5)}
-                                    for n, g in sorted(obs.gains.items(), key=lambda kv: -kv[1])[:40]])
+    _json(
+        obs.ws,
+        "bank_top.json",
+        [
+            {"member": n, "marginal_val_gain": round(float(g), 5)}
+            for n, g in sorted(obs.gains.items(), key=lambda kv: -kv[1])[:40]
+        ],
+    )
 
 
 def lists(obs, ctx):
@@ -89,10 +108,17 @@ def cells(obs, ctx):
     """cells.json (walk-forward selection only): what F's selection score is made of, fold by fold and
     period/session cell, each a ratio to the reference on days after its weights' days."""
     if obs.sel.wf:
-        _json(obs.ws, "cells.json", {"what": "F's walk-forward ratio to the reference per fold and "
-                                     "period/session cell; a fold scores mean + worst_weight * min",
-                                     "worst_weight": obs.sel.cfg.worst_weight, "F": obs.F,
-                                     "table": obs.sel.wf.table(obs.sel.ix(obs.F))})
+        _json(
+            obs.ws,
+            "cells.json",
+            {
+                "what": "F's walk-forward ratio to the reference per fold and "
+                "period/session cell; a fold scores mean + worst_weight * min",
+                "worst_weight": obs.sel.cfg.worst_weight,
+                "F": obs.F,
+                "table": obs.sel.wf.table(obs.sel.ix(obs.F)),
+            },
+        )
 
 
 PROVIDERS = (state, diagnosis, grammar, ledger, lists, memory, docs, bank, cells, library)

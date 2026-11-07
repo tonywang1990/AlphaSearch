@@ -479,7 +479,7 @@
 "tree.60s.ret.agg_a"
 ],
 "twins": null,
-"val_gain": 0.1277712040601715
+"val_gain": 0.12777120406017173
 },
 {
 "action": "suggest",
@@ -1468,7 +1468,7 @@
 "k_max": 6,
 "note": "scores are ratios to the prod reference (1.0 = prod) averaged over periods",
 "objective": "ic",
-"prod_val": 1.062014374630929,
+"prod_val": 1.0620143746309292,
 "swap_t": 0.0,
 "val_numbers_in": "ic_drift"
 }
@@ -1790,14 +1790,14 @@
 "gru.30s.skip.agg_b"
 ],
 "F_after": [
-"gru.60s.ret.agg_a",
+"linear.10s.ret.agg_b",
 "linear.30s.ret.agg_a",
-"gru.60s.ret.book",
-"gru.30s.skip.agg_b",
 "gru.60s.ret.agg_b",
-"linear.10s.ret.agg_b"
+"gru.30s.skip.agg_b",
+"gru.60s.ret.agg_a",
+"gru.60s.ret.book"
 ],
-"F_after_val": 1.9635585552732275,
+"F_after_val": 1.9635585552732273,
 "F_val": 1.5759934118337302,
 "bank": 8,
 "failed": [],
@@ -1813,23 +1813,23 @@
 },
 {
 "F": [
-"gru.60s.ret.agg_a",
+"linear.10s.ret.agg_b",
 "linear.30s.ret.agg_a",
-"gru.60s.ret.book",
-"gru.30s.skip.agg_b",
 "gru.60s.ret.agg_b",
-"linear.10s.ret.agg_b"
+"gru.30s.skip.agg_b",
+"gru.60s.ret.agg_a",
+"gru.60s.ret.book"
 ],
 "F_after": [
-"gru.60s.ret.agg_a",
 "linear.30s.ret.agg_a",
-"gru.60s.ret.book",
-"gru.30s.skip.agg_b",
 "gru.60s.ret.agg_b",
+"gru.30s.skip.agg_b",
+"gru.60s.ret.agg_a",
+"gru.60s.ret.book",
 "linear.60s.ret.book"
 ],
 "F_after_val": 2.092568195795494,
-"F_val": 1.9635585552732275,
+"F_val": 1.9635585552732273,
 "bank": 11,
 "failed": [],
 "iteration": 2,
@@ -1929,7 +1929,7 @@
 "gru.60s.ret.book"
 ],
 "twins": null,
-"val_gain": 0.38756514343949733
+"val_gain": 0.3875651434394971
 },
 {
 "action": "feature_set",
@@ -2007,8 +2007,8 @@
 "refused": "screen beats_null -8.48e-02",
 "screen": {
 "all": {
-"beats_null": -0.08479254178687709,
-"null_r2": 0.08279285325247018,
+"beats_null": -0.08479254178687706,
+"null_r2": 0.08279285325247016,
 "r2": -0.001999688534406907
 }
 },
@@ -2016,9 +2016,9 @@
 "test_verdict": "flat",
 "trained": [],
 "twins": [
+"gru.60s.ret.agg_b",
 "gru.60s.ret.book",
 "linear.10s.ret.agg_b",
-"gru.60s.ret.agg_a",
 "gru.30s.skip.agg_b"
 ],
 "val_gain": 0.0
@@ -2032,31 +2032,31 @@
 "state": {
 "F": [
 {
-"member": "gru.60s.ret.agg_a",
-"weight": 0.235
+"member": "linear.10s.ret.agg_b",
+"weight": 0.139
 },
 {
 "member": "linear.30s.ret.agg_a",
 "weight": 0.2417
 },
 {
-"member": "gru.60s.ret.book",
-"weight": 0.1654
+"member": "gru.60s.ret.agg_b",
+"weight": 0.1173
 },
 {
 "member": "gru.30s.skip.agg_b",
 "weight": 0.1017
 },
 {
-"member": "gru.60s.ret.agg_b",
-"weight": 0.1173
+"member": "gru.60s.ret.agg_a",
+"weight": 0.235
 },
 {
-"member": "linear.10s.ret.agg_b",
-"weight": 0.139
+"member": "gru.60s.ret.book",
+"weight": 0.1654
 }
 ],
-"F_val": 1.9635585552732275,
+"F_val": 1.9635585552732273,
 "budget": {
 "iterations_left": 1,
 "models_this_iteration": 6
@@ -2551,14 +2551,14 @@
 "linear.10s.ret.agg_b"
 ],
 "F_after": [
+"tree.30s.ret.agg_a",
+"linear.10s.ret.agg_b",
 "gru.60s.skip.agg_a",
 "linear.30s.ret.agg_a",
 "gru.10s.skip.agg_a",
-"gru.30s.skip.book",
-"tree.30s.ret.agg_a",
-"linear.10s.ret.agg_b"
+"gru.30s.skip.book"
 ],
-"F_after_val": 2.06089015025232,
+"F_after_val": 2.0608901502523196,
 "F_val": 1.0146880064129464,
 "bank": 8,
 "failed": [],
@@ -2577,12 +2577,12 @@
 },
 {
 "F": [
+"tree.30s.ret.agg_a",
+"linear.10s.ret.agg_b",
 "gru.60s.skip.agg_a",
 "linear.30s.ret.agg_a",
 "gru.10s.skip.agg_a",
-"gru.30s.skip.book",
-"tree.30s.ret.agg_a",
-"linear.10s.ret.agg_b"
+"gru.30s.skip.book"
 ],
 "F_after": [
 "gru.60s.skip.agg_a",
@@ -2593,7 +2593,7 @@
 "gru.60s.skip.agg_b"
 ],
 "F_after_val": 2.23294433713524,
-"F_val": 2.06089015025232,
+"F_val": 2.0608901502523196,
 "bank": 14,
 "failed": [],
 "iteration": 1,
@@ -2674,7 +2674,7 @@
 "gru.10s.skip.agg_a"
 ],
 "twins": null,
-"val_gain": 1.0462021438393736
+"val_gain": 1.0462021438393732
 },
 {
 "iteration": 0,
@@ -2709,7 +2709,7 @@
 "gru.60s.skip.agg_b"
 ],
 "twins": null,
-"val_gain": 0.17205418688291996
+"val_gain": 0.1720541868829204
 },
 {
 "iteration": 1,

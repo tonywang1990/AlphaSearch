@@ -9,9 +9,24 @@ description = "The research agent that searches futs-infra's model space (named 
 requires-python = ">=3.12"
 dependencies = ["numpy", "scipy", "scikit-learn"]
 
-[project.optional-dependencies]
-infra = ["futs-infra>=0.2"]       # research interface v1; pinned exactly per campaign by the owner
-dev = ["pytest", "ruff"]
+# futs-infra is installed separately from an owner-supplied, hash-pinned wheel.
+# Keeping it out of public resolution also keeps fake campaigns independent of infra.
+[dependency-groups]
+dev = ["pytest==9.1.1", "ruff==0.15.20", "pyright==1.1.414", "pre-commit==4.5.1",
+       "setuptools==82.0.0", "wheel==0.46.3"]
+
+[tool.uv]
+required-version = "==0.11.29"
+environments = ["python_version == '3.12'"]
+constraint-dependencies = ["numpy==1.26.4", "scipy==1.17.1", "scikit-learn==1.8.0"]
+
+[tool.pyright]
+include = ["alphasearch", "tests/type_contract.py"]
+pythonVersion = "3.12"
+typeCheckingMode = "basic"
+strict = ["alphasearch/infra/contract.py"]
+venvPath = "."
+venv = ".venv"
 
 [tool.setuptools.packages.find]
 include = ["alphasearch*"]
@@ -24,7 +39,7 @@ target-version = "py312"
 line-length = 120
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "TID"]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B", "TID251"]
 ignore = ["E731"]          # small named lambdas are the house style (futs/DOTA)
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]

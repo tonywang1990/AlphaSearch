@@ -58,7 +58,7 @@ The principles it is built on:
    is `./tool`; its tools join the library only through their own passing test; the transcript is
    audited for reads outside the workspace (`runtime/llm.py`).
 8. **Behaviour is pinned.** `tests/test_equivalence.py` replays four recorded campaigns on the
-   synthetic infra field by field; a change that moves a decision or a number fails it.
+   synthetic infra field by field; decisions stay exact; numeric leaves allow only roundoff (1e-12 relative/absolute).
 9. **Config is data.** `config.Config` holds every knob with its default and the evidence for it.
 
 ## Layers (one-way; `tests/test_layers.py` enforces them)
@@ -101,6 +101,20 @@ never drive it; only `campaign.py`, `round.py` and `actions.py` compose the part
 Re-recording the golden (only for an intended behaviour change): run the four scenarios in
 `tests/test_equivalence.py` and write their snapshot to `tests/golden/campaigns.json`, saying in the
 commit what changed and why.
+
+The 2026-11-06 CI setup deliberately re-recorded the golden after fixing selection ties:
+permutations of the same member set have t=0, and competing starts are scored in canonical
+index order. Previously roundoff could produce a spurious significant t between equivalent
+ensembles, changing their order and later random-policy draws. The incumbent wins equivalent
+starts when the swap threshold is positive; a zero threshold keeps the first maximum.
+This behavior change was approved by Jimmy; golden member choices remain exact.
+
+The hosted CI follow-up on 2026-11-07 also preserves input order for equal-gain `suggest` recipes
+and for Thompson draws that remain tied after adding random jitter.
+NumPy quicksort reordered exact ties across CPU instruction paths, changing the scripted
+agent's trained bank and the frontier campaign's first draw (two jittered scores both
+rounded to 0.3682331154877688). Stable sorting matches the existing golden on both CPU
+paths, so this follow-up does not re-record it; discrete comparisons remain exact.
 
 ## What came over from PR 452, and what did not
 

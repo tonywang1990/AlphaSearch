@@ -4,6 +4,7 @@ the chains present in both, and the fit test = a + b * log2(cumulative models).
 
 python tools/scoreboard.py --dota /qr_scratch/tony/dota/agent --ours <frontier dir> [--chains 0 1]
 """
+
 import argparse
 import json
 import os
