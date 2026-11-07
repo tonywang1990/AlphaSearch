@@ -2,7 +2,7 @@
 
 The research agent for futs (named after AlphaGo): one LLM agent with tools that proposes models
 and ensembles for a futures symbol, while futs-infra trains, scores and gates them. It talks to
-futs-infra only through the research interface v1. The design, its layers and its origins
+futs-infra only through the research interface v1 (API majors 1 and 2). The design, its layers and its origins
 (DOTA and SoM in futs) are in [`docs/design.md`](docs/design.md).
 
 ## Run

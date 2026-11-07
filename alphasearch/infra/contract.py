@@ -11,7 +11,7 @@ from typing import Any, Literal, Protocol
 import numpy as np
 from numpy.typing import NDArray
 
-API_VERSIONS = ("1.",)  # the interface majors this client speaks
+API_VERSIONS = ("1.", "2.")  # the interface majors this client speaks
 
 ErrorCode = Literal["invalid", "not_permitted", "budget_exhausted", "busy", "unavailable", "not_found", "infra_failure"]
 
