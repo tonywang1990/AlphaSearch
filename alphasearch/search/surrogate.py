@@ -56,10 +56,12 @@ class Surrogate:
         """Indices of `k` distinct recipes, each the argmax of one drawn tree."""
         rng = rng or np.random.default_rng(self.seed)
         draws = self.samples(cs)
-        draws = draws + rng.uniform(0, 1e-12, draws.shape)  # exact ties broken by `rng`
+        draws = draws + rng.uniform(
+            0, 1e-12, draws.shape
+        )  # seeded tie breaking; stable sort resolves rounded collisions
         picked = []
         for t in rng.permutation(len(draws)):
-            order = [i for i in np.argsort(-draws[t]) if i not in picked]
+            order = [i for i in np.argsort(-draws[t], kind="stable") if i not in picked]
             if order:
                 picked.append(int(order[0]))
             if len(picked) == k:

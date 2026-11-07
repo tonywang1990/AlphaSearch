@@ -124,3 +124,15 @@ def test_evf_scores_a_change_against_f_and_prod_by_val_day(tmp_path):
     assert "error" in answer(obs, "evf", ["--add", "not.a.member"]) and calls == ["evf"]
     cell = answer(obs, "evf", ["--add", extra, "--cell", "calm/day"])
     assert cell["cell"] == "calm/day" and 0 < cell["days"] <= out["days"] and cell["evf"] != out["evf"]
+
+
+def test_suggestion_ties_keep_recipe_order():
+    from types import SimpleNamespace
+
+    from alphasearch.tools.bank import suggest
+
+    recipes = {f"recipe_{i}": {} for i in range(32)}
+    means = np.array([i % 3 for i in range(32)], dtype=float)
+    obs = SimpleNamespace(untrained=recipes, sur=SimpleNamespace(samples=lambda cs: np.tile(means, (3, 1))))
+    expected = sorted(recipes, key=lambda name: -means[int(name.removeprefix("recipe_"))])
+    assert [row["recipe"] for row in suggest(obs, ["--n", "32"])] == expected

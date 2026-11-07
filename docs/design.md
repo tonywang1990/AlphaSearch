@@ -109,6 +109,13 @@ ensembles, changing their order and later random-policy draws. The incumbent win
 starts when the swap threshold is positive; a zero threshold keeps the first maximum.
 This behavior change was approved by Jimmy; golden member choices remain exact.
 
+The hosted CI follow-up on 2026-11-07 also preserves input order for equal-gain `suggest` recipes
+and for Thompson draws that remain tied after adding random jitter.
+NumPy quicksort reordered exact ties across CPU instruction paths, changing the scripted
+agent's trained bank and the frontier campaign's first draw (two jittered scores both
+rounded to 0.3682331154877688). Stable sorting matches the existing golden on both CPU
+paths, so this follow-up does not re-record it; discrete comparisons remain exact.
+
 ## What came over from PR 452, and what did not
 
 - **Kept**: the frontier search (fill + gated swaps from prod over the whole bank), `ic_drift`

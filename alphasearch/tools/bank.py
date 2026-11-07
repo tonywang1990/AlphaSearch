@@ -55,7 +55,7 @@ def suggest(obs, args):
     m = obs.sur.samples([obs.untrained[u] for u in pool])
     return [
         {"recipe": pool[i], "expected_gain": float(m.mean(0)[i]), "sd": float(m.std(0)[i])}
-        for i in np.argsort(-m.mean(0))[:n]
+        for i in np.argsort(-m.mean(0), kind="stable")[:n]
     ]
 
 

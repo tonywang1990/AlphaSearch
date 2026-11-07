@@ -68,20 +68,20 @@ def _norm(x):
     return json.loads(json.dumps(x, default=float, sort_keys=True))
 
 
-def _assert_same(actual, expected):
+def _assert_same(actual, expected, path="root"):
     if isinstance(expected, dict):
-        assert actual.keys() == expected.keys()
+        assert actual.keys() == expected.keys(), path
         for key in expected:
-            _assert_same(actual[key], expected[key])
+            _assert_same(actual[key], expected[key], f"{path}.{key}")
     elif isinstance(expected, list):
-        assert len(actual) == len(expected)
-        for a, e in zip(actual, expected, strict=True):
-            _assert_same(a, e)
+        assert len(actual) == len(expected), path
+        for i, (a, e) in enumerate(zip(actual, expected, strict=True)):
+            _assert_same(a, e, f"{path}[{i}]")
     elif isinstance(expected, float):
         # Different BLAS builds change the final bits, not the research decision.
-        assert actual == pytest.approx(expected, rel=1e-12, abs=1e-12)
+        assert actual == pytest.approx(expected, rel=1e-12, abs=1e-12), path
     else:
-        assert actual == expected
+        assert actual == expected, path
 
 
 def test_golden_comparison_tolerates_only_numerical_roundoff():
@@ -121,4 +121,4 @@ def test_the_harness_reproduces_its_golden_campaigns(tmp_path, monkeypatch):
     }
     for name in golden:
         for key in golden[name]:
-            _assert_same(_norm(got[name][key]), golden[name][key])
+            _assert_same(_norm(got[name][key]), golden[name][key], f"{name}.{key}")
