@@ -15,6 +15,7 @@ whose edge needs the price to revert scores on the days it does not, a regime an
 turn into (evidence, the LU
 gate, 2026-10-29: the recent-night OOS stopped reverting and the 30s trees that won storm lost it;
 in-window, the same set already trailed prod on non-reverting nights)."""
+
 import numpy as np
 
 from alphasearch.ensemble.moments import Stats, ic
@@ -25,11 +26,22 @@ def merge(a: Moments, b: Moments) -> Moments:
     """Two blocks' unit moments over the same members as one block (the SoM aggregator = fit + validation)."""
     assert a.names == b.names and a.label_names == b.label_names and a.periods == b.periods
     cat = lambda x, y: np.concatenate([np.asarray(x), np.asarray(y)])
-    return Moments(names=a.names, day=cat(a.day, b.day), session=cat(a.session, b.session),
-                   period=cat(a.period, b.period), periods=a.periods, sessions=a.sessions,
-                   n=cat(a.n, b.n), sz=cat(a.sz, b.sz), szz=cat(a.szz, b.szz), zz=cat(a.zz, b.zz),
-                   zzm=cat(a.zzm, b.zzm), reference=a.reference, label_names=a.label_names,
-                   labels=[{k: cat(x[k], y[k]) for k in x} for x, y in zip(a.labels, b.labels, strict=True)])
+    return Moments(
+        names=a.names,
+        day=cat(a.day, b.day),
+        session=cat(a.session, b.session),
+        period=cat(a.period, b.period),
+        periods=a.periods,
+        sessions=a.sessions,
+        n=cat(a.n, b.n),
+        sz=cat(a.sz, b.sz),
+        szz=cat(a.szz, b.szz),
+        zz=cat(a.zz, b.zz),
+        zzm=cat(a.zzm, b.zzm),
+        reference=a.reference,
+        label_names=a.label_names,
+        labels=[{k: cat(x[k], y[k]) for k in x} for x, y in zip(a.labels, b.labels, strict=True)],
+    )
 
 
 def reversion(m: Moments, j):
@@ -42,8 +54,10 @@ def reversion(m: Moments, j):
         raise ValueError(f"regime cells need two labels h and 2h; this campaign carries {m.label_names}")
     h = max(pairs)
     with np.errstate(divide="ignore", invalid="ignore"):
-        var = [m.labels[secs[x]]["syy"][:, j] / m.n[:, j] - (m.labels[secs[x]]["sy"][:, j] / m.n[:, j]) ** 2
-               for x in (h, 2 * h)]
+        var = [
+            m.labels[secs[x]]["syy"][:, j] / m.n[:, j] - (m.labels[secs[x]]["sy"][:, j] / m.n[:, j]) ** 2
+            for x in (h, 2 * h)
+        ]
         return var[1] / (2 * var[0]) - 1
 
 
@@ -61,16 +75,19 @@ class WalkForward:
     def __init__(self, st: Stats, chunks=4, worst_weight=0.5, shrink=0.25, regime=False):
         self.st, self.worst_weight, self.shrink = st, worst_weight, shrink
         sess = np.asarray(st.m.session)
-        groups = [(sess == s, f"{st.m.periods[k]}/{st.m.sessions[s]}", k)
-                  for k in np.unique(st.period) for s in np.unique(sess)]
+        groups = [
+            (sess == s, f"{st.m.periods[k]}/{st.m.sessions[s]}", k)
+            for k in np.unique(st.period)
+            for s in np.unique(sess)
+        ]
         if regime:
             rho = reversion(st.m, st.ref[0][0])
             for s in np.unique(sess):
                 q = (sess == s) & np.isfinite(rho)
                 groups.append((q & (rho >= np.quantile(rho[q], 2 / 3)), f"nonrev/{st.m.sessions[s]}", None))
-        order = {}                                     # chunk index of every day, per period
+        order = {}  # chunk index of every day, per period
         for k in np.unique(st.period):
-            days = np.flatnonzero(st.period == k)       # day indices in time order (st.days is sorted)
+            days = np.flatnonzero(st.period == k)  # day indices in time order (st.days is sorted)
             for i, part in enumerate(np.array_split(days, chunks)):
                 order.update({int(d): i for d in part})
         chunk = np.array([order[d] for d in range(len(st.days))])
@@ -118,5 +135,7 @@ class WalkForward:
     def table(self, jj):
         """{fold i: {cell: ratio}}: what a set's selection score is made of (the agent reads it)."""
         r = self.cells(jj)
-        return {f"fold{i + 1}": {name: round(float(x), 4) for (_, _, _, name), x in zip(cells, row, strict=True)}
-                for i, ((_, _, cells), row) in enumerate(zip(self.folds, r, strict=True))}
+        return {
+            f"fold{i + 1}": {name: round(float(x), 4) for (_, _, _, name), x in zip(cells, row, strict=True)}
+            for i, ((_, _, cells), row) in enumerate(zip(self.folds, r, strict=True))
+        }

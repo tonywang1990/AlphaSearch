@@ -1,4 +1,5 @@
 """Both streams, one call: events.jsonl (machine) and run.log (human). Never raises."""
+
 import json
 import os
 import time
@@ -10,7 +11,7 @@ class Log:
         self.events = os.path.join(log_dir, "events.jsonl")
         self.human = os.path.join(log_dir, "run.log")
         self.t0 = time.time()
-        self.cost = 0.0        # every `cost_usd` that passes through, tallied here
+        self.cost = 0.0  # every `cost_usd` that passes through, tallied here
 
     def __call__(self, kind, msg="", **fields):
         try:
@@ -21,13 +22,13 @@ class Log:
         try:
             with open(self.events, "a") as f:
                 f.write(json.dumps(rec, default=str) + "\n")
-            extra = " ".join(f"{k}={v}" for k, v in fields.items()
-                             if k not in ("traceback", "reply", "prompt", "trace"))
+            extra = " ".join(
+                f"{k}={v}" for k, v in fields.items() if k not in ("traceback", "reply", "prompt", "trace")
+            )
             with open(self.human, "a") as f:
-                f.write(f"{time.strftime('%H:%M:%S')} [{kind}] {msg}"
-                        f"{'  ' + extra if extra else ''}\n")
+                f.write(f"{time.strftime('%H:%M:%S')} [{kind}] {msg}{'  ' + extra if extra else ''}\n")
             print(f"[{kind}] {msg}", flush=True)
-        except Exception:                        # noqa: BLE001 — logging must not kill a run
+        except Exception:  # noqa: BLE001 — logging must not kill a run
             pass
 
 

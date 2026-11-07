@@ -1,4 +1,5 @@
 """Tools over the trained bank: moment arithmetic on the val days, no infra job."""
+
 import re
 
 import numpy as np
@@ -16,8 +17,14 @@ def whatif(obs, args):
         return {"error": f"{len(s)} members (1-{sel.cfg.k_max}); not trained: {bad[:3]}"}
     f = sel.scorer()
     g, se = sel.gain(sel.ix(s), sel.ix(F))
-    return {"members": s, "val": f(sel.ix(s)), "F_val": f(sel.ix(F)), "val_gain": g,
-            "val_gain_se": se, "t": g / se if se else None}
+    return {
+        "members": s,
+        "val": f(sel.ix(s)),
+        "F_val": f(sel.ix(F)),
+        "val_gain": g,
+        "val_gain_se": se,
+        "t": g / se if se else None,
+    }
 
 
 @tool("members [regex]", "trained models by their marginal val gain to F (top 60)")
@@ -46,8 +53,10 @@ def suggest(obs, args):
     if not pool:
         return []
     m = obs.sur.samples([obs.untrained[u] for u in pool])
-    return [{"recipe": pool[i], "expected_gain": float(m.mean(0)[i]), "sd": float(m.std(0)[i])}
-            for i in np.argsort(-m.mean(0))[:n]]
+    return [
+        {"recipe": pool[i], "expected_gain": float(m.mean(0)[i]), "sd": float(m.std(0)[i])}
+        for i in np.argsort(-m.mean(0))[:n]
+    ]
 
 
 @tool("predcheck", "the surrogate's held-out Spearman on the trained models: the bar for your own predictor")

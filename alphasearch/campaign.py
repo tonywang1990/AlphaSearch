@@ -8,6 +8,7 @@ is the whole algorithm (dota/docs/agent-search.md §2); each phase lives in `rou
 
 The fixed search picks F; the policy only decides what to train; infra trains and scores, and its
 test verdicts never reach the agent. State lives in files, so a rerun with the same `out` resumes."""
+
 import json
 import os
 import shutil
@@ -29,22 +30,22 @@ PHASES = ("observe", "workspace", "plan", "act", "evaluate", "reflect", "record"
 
 def _setup(infra, cfg, out, desc, log, journal):
     """(the memory.md path or None, what outlives a round)."""
-    if not os.path.exists(os.path.join(out, "agent.md")):              # the campaign's brief, frozen
+    if not os.path.exists(os.path.join(out, "agent.md")):  # the campaign's brief, frozen
         shutil.copy(cfg.prompt or workspace.PROMPT, os.path.join(out, "agent.md"))
         json.dump(asdict(cfg), open(os.path.join(out, "config.json"), "w"), indent=1)
     mem = cfg.memory
-    if not mem and desc.served:           # the cross-symbol memory, from this week's prod (frozen)
+    if not mem and desc.served:  # the cross-symbol memory, from this week's prod (frozen)
         mem = os.path.join(out, "memory.md")
         if not os.path.exists(mem):
             open(mem, "w").write(memory.render(desc.served, desc.symbol, cfg.memory_stores))
-    if cfg.reveal_all and desc.universe and not journal.iters:       # pre-fitted: revealing costs nothing
+    if cfg.reveal_all and desc.universe and not journal.iters:  # pre-fitted: revealing costs nothing
         todo = infra.recipes()
         if todo:
             infra.train(todo)
             log("reveal", f"{len(todo)} pre-fitted members")
     seen = experience.seen(cfg.experience)
-    if cfg.frontier and cfg.experience and not journal.iters:   # the bank is everything this symbol
-        carry = [r for r in infra.recipes() if name_of(r, desc.axes) in seen]   # trained: free, uncounted
+    if cfg.frontier and cfg.experience and not journal.iters:  # the bank is everything this symbol
+        carry = [r for r in infra.recipes() if name_of(r, desc.axes) in seen]  # trained: free, uncounted
         if carry:
             infra.train(carry)
             log("carry", f"{len(carry)} models every earlier episode trained")
@@ -73,18 +74,23 @@ def run(infra, cfg, out):
     check_version(desc)
     os.makedirs(out, exist_ok=True)
     log, journal, policy = Log(out), Journal(out), POLICIES[cfg.policy](cfg)
-    lib = os.path.join(cfg.experience or out, "tools")                 # the agent's tools outlive a campaign
+    lib = os.path.join(cfg.experience or out, "tools")  # the agent's tools outlive a campaign
     mem, carry = _setup(infra, cfg, out, desc, log, journal)
     rng = np.random.default_rng(cfg.seed * 1000 + len(journal.iters))
     for it in range(len(journal.iters), cfg.rounds):
         t0 = time.time()
-        laps = [t0]                                     # each phase's end, for the session viewer
+        laps = [t0]  # each phase's end, for the session viewer
         start = desc.reference if cfg.frontier or not journal.iters else journal.iters[-1]["F_after"]
         obs = rnd.observe(infra, desc, cfg, it, out, list(start), carry)
         laps.append(time.time())
-        workspace.build(obs, journal=journal, budget={"iterations_left": cfg.rounds - it, "models_this_iteration":
-                                                      cfg.models}, lib=lib, memory=mem,
-                        diagnosis=diagnose(obs.sel, obs.F) if obs.sel.cfg.objective == "ic" else [])
+        workspace.build(
+            obs,
+            journal=journal,
+            budget={"iterations_left": cfg.rounds - it, "models_this_iteration": cfg.models},
+            lib=lib,
+            memory=mem,
+            diagnosis=diagnose(obs.sel, obs.F) if obs.sel.cfg.objective == "ic" else [],
+        )
         laps.append(time.time())
         plan = policy.plan(obs, cfg.models, rng, log)
         laps.append(time.time())
@@ -98,16 +104,25 @@ def run(infra, cfg, out):
         row = rnd.record(journal, obs, plan, a, o, tools, policy, log, time.time() - t0)
         laps.append(time.time())
         log("phases", str(it), **{p: round(b - a, 1) for p, a, b in zip(PHASES, laps[:-1], laps[1:], strict=True)})
-        if row["stop"] and not desc.universe:          # benchmark: the budget is fixed, unused is lost
+        if row["stop"] and not desc.universe:  # benchmark: the budget is fixed, unused is lost
             break
     if journal.iters and not os.path.exists(os.path.join(out, "episode.json")):
         sel = rnd.selector(infra, desc, cfg)
         F = journal.iters[-1]["F_after"]
         ev = _eval_report(infra, desc, cfg, out, sel.legs(sel.ix(F)), log)
-        ep = experience.record(out, os.path.basename(out.rstrip("/")), cfg.policy, F, sel.gains(F),
-                               {m.name: m.recipe for m in infra.models()}, journal.ledger, journal.iters,
-                               objective=desc.objective, prompt=os.path.basename(cfg.prompt or workspace.PROMPT),
-                               eval_report=ev)
+        ep = experience.record(
+            out,
+            os.path.basename(out.rstrip("/")),
+            cfg.policy,
+            F,
+            sel.gains(F),
+            {m.name: m.recipe for m in infra.models()},
+            journal.ledger,
+            journal.iters,
+            objective=desc.objective,
+            prompt=os.path.basename(cfg.prompt or workspace.PROMPT),
+            eval_report=ev,
+        )
         if cfg.experience:
             experience.add(cfg.experience, ep)
     return out

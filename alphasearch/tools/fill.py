@@ -4,13 +4,16 @@ IC selects (ADR 0008) but the gate judges EVf, the 1% tail weighted by the chanc
 fills: a set can match prod on IC and on the tail's gross edge yet lose EVf because its strongest
 calls land where the book does not fill (the LU gate, 2026-10-29: recent night IC +0.7%, gross tail
 +0.8%, EVf -11%). This tool is how a gain is checked against fills before it is kept."""
+
 import numpy as np
 
 from alphasearch.tools import opt, tool
 
 
-@tool("evf --add M... --drop M... [--cell P/S]",
-      "F with members added or dropped vs F and prod on fill-aware EV (val days, or one period/session cell; one infra job)")
+@tool(
+    "evf --add M... --drop M... [--cell P/S]",
+    "F with members added or dropped vs F and prod on fill-aware EV (val days, or one period/session cell; one infra job)",
+)
 def evf(obs, args):
     sel, F = obs.sel, obs.F
     cell = (opt(args, "--cell") or [None])[0]
@@ -29,7 +32,16 @@ def evf(obs, args):
 
     g, se, n = paired(new, old)
     gp, sep, _ = paired(new, prod)
-    return {"members": s, "cell": cell or "all", "evf": new.value, "F_evf": old.value, "prod_evf": prod.value,
-            "gain_vs_F": g, "gain_vs_F_se": se, "t_vs_F": g / se if se else None,
-            "gain_vs_prod_pct": 100 * (new.value / prod.value - 1) if prod.value else None,
-            "t_vs_prod": gp / sep if sep else None, "days": n}
+    return {
+        "members": s,
+        "cell": cell or "all",
+        "evf": new.value,
+        "F_evf": old.value,
+        "prod_evf": prod.value,
+        "gain_vs_F": g,
+        "gain_vs_F_se": se,
+        "t_vs_F": g / se if g is not None and se else None,
+        "gain_vs_prod_pct": 100 * (new.value / prod.value - 1) if prod.value else None,
+        "t_vs_prod": gp / sep if gp is not None and sep else None,
+        "days": n,
+    }

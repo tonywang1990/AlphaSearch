@@ -1,9 +1,10 @@
 """The records a campaign keeps, and the one rule about them: the agent never sees a test result.
 
-    Plan      a policy's reply, parsed and validated: at most 4 experiments, lessons, tools, stop
-    Journal   iters.jsonl (one row per round, with the sealed test verdict) and ledger.jsonl (one
-              row per experiment, plus the round's lessons); what a resume reads back. `visible()`
-              is the ledger as the agent may read it: every `test*` field stripped"""
+Plan      a policy's reply, parsed and validated: at most 4 experiments, lessons, tools, stop
+Journal   iters.jsonl (one row per round, with the sealed test verdict) and ledger.jsonl (one
+          row per experiment, plus the round's lessons); what a resume reads back. `visible()`
+          is the ledger as the agent may read it: every `test*` field stripped"""
+
 import json
 import os
 from dataclasses import dataclass, field
@@ -14,18 +15,21 @@ LEDGER_KEYS = ("id", "action", "hypothesis", "name", "base", "twins", "target_ce
 
 @dataclass
 class Plan:
-    experiments: list = field(default_factory=list)   # [{"id", "action", ...}] (actions.ACTIONS)
+    experiments: list = field(default_factory=list)  # [{"id", "action", ...}] (actions.ACTIONS)
     lessons: list = field(default_factory=list)
-    tools: list = field(default_factory=list)         # [{"name", "path", "test"}] the agent wrote
+    tools: list = field(default_factory=list)  # [{"name", "path", "test"}] the agent wrote
     stop: bool = False
 
     @classmethod
     def parse(cls, obj):
         """A reply object -> Plan; the first MAX_EXPERIMENTS experiments are kept."""
         obj = obj or {}
-        return cls(experiments=list(obj.get("experiments") or [])[:MAX_EXPERIMENTS],
-                   lessons=list(obj.get("lessons") or []), tools=list(obj.get("tools") or []),
-                   stop=bool(obj.get("stop")))
+        return cls(
+            experiments=list(obj.get("experiments") or [])[:MAX_EXPERIMENTS],
+            lessons=list(obj.get("lessons") or []),
+            tools=list(obj.get("tools") or []),
+            stop=bool(obj.get("stop")),
+        )
 
 
 def _jsonl(path):

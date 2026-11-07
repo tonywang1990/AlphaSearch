@@ -7,6 +7,7 @@ row records (what was refused and why). A new action is a handler here plus its 
     ensemble     nothing to train: judged after selection (round.evaluate, at ENSEMBLE_T)
     feature_set  a composed set from store columns, screened against same-size random sets first,
                  admitted by infra's rule, then its twins of F members and surrogate fill-ins"""
+
 import numpy as np
 
 from alphasearch.infra.contract import name_of
@@ -15,14 +16,19 @@ from alphasearch.search.surrogate import matches
 
 def train(obs, exp, left, rng):
     want = list(dict.fromkeys(exp.get("recipes") or []))
-    row = {"refused_recipes": {r: ("already trained" if r in obs.coords else "not in available.txt")
-                               for r in want if r not in obs.untrained}}
+    row = {
+        "refused_recipes": {
+            r: ("already trained" if r in obs.coords else "not in available.txt")
+            for r in want
+            if r not in obs.untrained
+        }
+    }
     return [r for r in want if r in obs.untrained][:left], row
 
 
 def suggest(obs, exp, left, rng):
     pool = [u for u in obs.untrained if matches(obs.untrained[u], exp.get("where"))]
-    if exp.get("new_only"):                             # never trained by any earlier episode
+    if exp.get("new_only"):  # never trained by any earlier episode
         pool = [u for u in pool if u not in obs.seen]
     k = min(int(exp.get("n") or 8), left, len(pool))
     picks = [pool[j] for j in obs.sur.thompson([obs.untrained[u] for u in pool], k, rng=rng)] if k else []
@@ -53,8 +59,15 @@ def feature_set(obs, exp, left, rng):
     obs.refresh_recipes()
     cands = [n for n, r in obs.untrained.items() if r.get("feature_set") == value]
     k = min(int(exp.get("k") or 8), left)
-    mine = [t for t in dict.fromkeys(name_of({**obs.coords[m], "feature_set": value}, obs.desc.axes)
-                                     for m in exp.get("twins") or [] if m in obs.coords) if t in cands][:k]
+    mine = [
+        t
+        for t in dict.fromkeys(
+            name_of({**obs.coords[m], "feature_set": value}, obs.desc.axes)
+            for m in exp.get("twins") or []
+            if m in obs.coords
+        )
+        if t in cands
+    ][:k]
     rest = [n for n in cands if n not in mine]
     if k > len(mine) and rest:
         mine += [rest[j] for j in obs.sur.thompson([obs.untrained[n] for n in rest], k - len(mine), rng=rng)]

@@ -8,6 +8,7 @@ the same for all, so the baselines are the agent's controls at equal budget (452
 
 A new policy is a class with `name`, `fills_leftover`, `plan(obs, models, rng, log)` and
 `reflect(obs, plan, lib, log)`, registered in POLICIES."""
+
 from alphasearch.policies.agent import AgentPolicy
 from alphasearch.policies.baselines import RandomPolicy, SurrogatePolicy
 

@@ -23,7 +23,7 @@ def test_baseline_campaign_runs_and_resumes(tmp_path, policy):
     assert [r["iteration"] for r in it] == [0, 1]
     assert all(r["test_verdict"] in ("better", "worse", "flat", "not_scored") for r in it)
     assert it[0]["bank"] > 2 and os.path.exists(os.path.join(out, "episode.json"))
-    campaign.run(infra, Config(policy=policy, rounds=2, models=6), out)   # resume: nothing reruns
+    campaign.run(infra, Config(policy=policy, rounds=2, models=6), out)  # resume: nothing reruns
     assert len(_rows(os.path.join(out, "iters.jsonl"))) == 2
 
 
@@ -34,8 +34,9 @@ def test_agent_round_uses_tools_and_never_sees_test(tmp_path, monkeypatch):
 
     def scripted(R, cfg, log):
         ws = R.ws
-        run = lambda *a: json.loads(subprocess.run(["./tool", *a], cwd=ws, capture_output=True, text=True,
-                                                   check=True).stdout)
+        run = lambda *a: json.loads(
+            subprocess.run(["./tool", *a], cwd=ws, capture_output=True, text=True, check=True).stdout
+        )
         seen["members"] = run("members")
         seen["whatif"] = run("whatif", "--drop", R.F[0])
         seen["suggest"] = run("suggest", "--n", "3")
@@ -43,12 +44,25 @@ def test_agent_round_uses_tools_and_never_sees_test(tmp_path, monkeypatch):
         seen["crossval"] = run("crossval")
         seen["ledger"] = json.load(open(os.path.join(ws, "ledger.json")))
         recipes = [s["recipe"] for s in seen["suggest"]]
-        return {"experiments": [
-            {"id": "e1", "action": "train", "hypothesis": "h", "recipes": recipes[:2]},
-            {"id": "e2", "action": "feature_set", "hypothesis": "h", "name": "fx", "base": "agg_a",
-             "features": ["x5", "x6", "x7"], "twins": R.F[:1], "k": 2},
-            {"id": "e3", "action": "ensemble", "hypothesis": "h", "members": R.F}],
-            "lessons": ["l"], "stop": False}
+        return {
+            "experiments": [
+                {"id": "e1", "action": "train", "hypothesis": "h", "recipes": recipes[:2]},
+                {
+                    "id": "e2",
+                    "action": "feature_set",
+                    "hypothesis": "h",
+                    "name": "fx",
+                    "base": "agg_a",
+                    "features": ["x5", "x6", "x7"],
+                    "twins": R.F[:1],
+                    "k": 2,
+                },
+                {"id": "e3", "action": "ensemble", "hypothesis": "h", "members": R.F},
+            ],
+            "lessons": ["l"],
+            "stop": False,
+        }
+
     monkeypatch.setattr(agent_policy, "session", scripted)
     infra = FakeInfra(seed=3)
     out = str(tmp_path / "a")
@@ -66,20 +80,30 @@ def test_frontier_chain_carries_the_bank_and_shows_it(tmp_path):
     store across campaigns. Campaign 2 starts with every model campaign 1 trained (free), its
     brief shows the whole bank, and the store names the best final F."""
     import numpy as np
+
     store = str(tmp_path / "store")
-    cfg = Config(policy="surrogate", select_objective="ic_drift", swap_t=0.0, frontier=True,
-                 sur_target="best_swap", experience=store, seed=1, models=6)
+    cfg = Config(
+        policy="surrogate",
+        select_objective="ic_drift",
+        swap_t=0.0,
+        frontier=True,
+        sur_target="best_swap",
+        experience=store,
+        seed=1,
+        models=6,
+    )
     first = FakeInfra(seed=5)
     campaign.run(first, Config(**{**cfg.__dict__, "rounds": 2}), str(tmp_path / "c1"))
     trained = {n for r in _rows(tmp_path / "c1" / "iters.jsonl") for n in r["trained"]}
     second = FakeInfra(seed=5)
     campaign.run(second, Config(**{**cfg.__dict__, "rounds": 1}), str(tmp_path / "c2"))
     bank = json.load(open(tmp_path / "c2" / "it_0" / "bank.json"))
-    assert trained <= {r["model"] for r in bank["rows"]}                       # carried, free
-    assert len(_rows(tmp_path / "c2" / "iters.jsonl")[0]["trained"]) == 6        # the budget counts new ones
+    assert trained <= {r["model"] for r in bank["rows"]}  # carried, free
+    assert len(_rows(tmp_path / "c2" / "iters.jsonl")[0]["trained"]) == 6  # the budget counts new ones
     row = next(r for r in bank["rows"] if not r["in_F"])
-    assert {"ic_val", "corr_with_F", "pcorr_given_F", "best_swap_gain", "best_swap_out",
-            "in_earlier_final_F"} <= set(row)
+    assert {"ic_val", "corr_with_F", "pcorr_given_F", "best_swap_gain", "best_swap_out", "in_earlier_final_F"} <= set(
+        row
+    )
     m = np.load(tmp_path / "c2" / "it_0" / "moments.npz")
     assert list(m["labels"]) == ["10s", "30s", "60s"] and list(m["select_labels"]) == [0, 1, 2]
     assert bank["F_val_from_moments"] == pytest.approx(bank["F_val"], abs=1e-4)
@@ -105,13 +129,26 @@ def test_the_som_clock_selects_walk_forward_and_reads_eval_once(tmp_path):
     from alphasearch import campaign
     from alphasearch.config import Config
     from alphasearch.infra.fake import FakeInfra
+
     out, store = str(tmp_path / "c"), str(tmp_path / "store")
     infra = FakeInfra(seed=2)
     calls = []
     real = infra.test_report
     infra.test_report = lambda *a, **k: calls.append(a) or real(*a, **k)
-    campaign.run(infra, Config(policy="surrogate", seed=3, rounds=3, models=6, report=True, select_objective="wf",
-                               swap_t=0.0, experience=store), out)
+    campaign.run(
+        infra,
+        Config(
+            policy="surrogate",
+            seed=3,
+            rounds=3,
+            models=6,
+            report=True,
+            select_objective="wf",
+            swap_t=0.0,
+            experience=store,
+        ),
+        out,
+    )
     rows = [json.loads(x) for x in open(f"{out}/iters.jsonl")]
     assert all(r["F_after_legs"] and set(r["F_after_cells"]) == {"fold1", "fold2", "fold3"} for r in rows)
     assert len(calls) == 1 and json.load(open(f"{out}/eval_report.json"))["subject"]
@@ -127,9 +164,13 @@ def test_regime_cells_score_the_least_reverting_units(tmp_path):
 
     from alphasearch.ensemble.moments import Stats
     from alphasearch.ensemble.walkforward import WalkForward, merge, reversion
+
     infra, out = FakeInfra(seed=2), str(tmp_path / "c")
-    campaign.run(infra, Config(policy="surrogate", seed=3, rounds=2, models=6, select_objective="wf",
-                               regime_cells=True, swap_t=0.0), out)
+    campaign.run(
+        infra,
+        Config(policy="surrogate", seed=3, rounds=2, models=6, select_objective="wf", regime_cells=True, swap_t=0.0),
+        out,
+    )
     st = Stats(merge(infra.moments("fit"), infra.moments("validation")), ["10s"])
     rows = [json.loads(x) for x in open(f"{out}/iters.jsonl")]
     assert all({f"nonrev/{s}" for s in st.m.sessions} <= set(r["F_after_cells"]["fold1"]) for r in rows)
@@ -145,6 +186,7 @@ def test_regime_cells_need_a_horizon_and_its_double():
 
     from alphasearch.ensemble.moments import Stats
     from alphasearch.ensemble.walkforward import WalkForward, merge
+
     infra = FakeInfra(seed=2)
     m = merge(infra.moments("fit"), infra.moments("validation"))
     keep = [i for i, x in enumerate(m.label_names) if x != "60s"]
@@ -157,11 +199,16 @@ def test_keep_reference_anchors_every_f_on_prods_legs(tmp_path):
     """keep_reference: the reference's legs are in every round's F (a swap never drops them); without
     it the selection is free to replace them."""
     infra, out = FakeInfra(seed=2), str(tmp_path / "k")
-    campaign.run(infra, Config(policy="surrogate", seed=3, rounds=3, models=6, select_objective="wf",
-                               swap_t=0.0, keep_reference=True), out)
+    campaign.run(
+        infra,
+        Config(policy="surrogate", seed=3, rounds=3, models=6, select_objective="wf", swap_t=0.0, keep_reference=True),
+        out,
+    )
     ref = set(infra.describe().reference)
     rows = [json.loads(x) for x in open(f"{out}/iters.jsonl")]
-    assert all(ref <= {n.removesuffix(".s1") for n, _ in r["F_after_legs"]} | {n for n, _ in r["F_after_legs"]} for r in rows)
+    assert all(
+        ref <= {n.removesuffix(".s1") for n, _ in r["F_after_legs"]} | {n for n, _ in r["F_after_legs"]} for r in rows
+    )
 
 
 def test_complexity_cost_prices_the_selection(tmp_path):
@@ -170,6 +217,7 @@ def test_complexity_cost_prices_the_selection(tmp_path):
     import numpy as np
 
     from alphasearch.round import selector
+
     infra = FakeInfra(seed=2)
     campaign.run(infra, Config(policy="surrogate", seed=3, rounds=1, models=6, swap_t=0.0), str(tmp_path / "w"))
     names = [m.name for m in infra.models()]
@@ -193,6 +241,7 @@ def test_complexity_cost_prices_the_selection(tmp_path):
 def test_reveal_all_puts_every_prefitted_member_in_the_bank(tmp_path):
     """reveal_all on a universe benchmark: before round 1, every recipe infra lists is trained (free)."""
     import dataclasses
+
     infra = FakeInfra(seed=4)
     real = infra.describe
     infra.describe = lambda: dataclasses.replace(real(), universe=True)

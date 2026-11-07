@@ -7,6 +7,7 @@ A safeguard stop is retried once in a fresh session at `retry_effort`; a usage l
 and retries (never a silent fallback); every call's transcript is audited for reaches
 outside its workspace.
 """
+
 import json
 import os
 import re
@@ -39,7 +40,7 @@ def agent_contract(spec_path):
     if text.startswith("---"):
         end = text.find("\n---", 3)
         if end >= 0:
-            return text[end + 4:].lstrip()
+            return text[end + 4 :].lstrip()
     return text
 
 
@@ -65,12 +66,22 @@ def _agent_cmd(model, effort=None, tools="", cwd=None):
     A tool given with its own rule (`Bash(./tool:*)`) exists, and only that rule is approved:
     the research agent may run its workspace's `./tool` and no other command."""
     names = [t for t in (tools or "").split(",") if t]
-    allow = ",".join(t if "(" in t else f"{t}(/{os.path.abspath(cwd)}/**)" for t in names) \
-        if cwd else ",".join(names)
-    cmd = ["claude", "-p", "--output-format", "json",
-           "--tools", ",".join(dict.fromkeys(t.split("(")[0] for t in names)),
-           "--allowed-tools", allow,
-           "--permission-prompts", "none", "--strict-mcp-config", "--model", model]
+    allow = ",".join(t if "(" in t else f"{t}(/{os.path.abspath(cwd)}/**)" for t in names) if cwd else ",".join(names)
+    cmd = [
+        "claude",
+        "-p",
+        "--output-format",
+        "json",
+        "--tools",
+        ",".join(dict.fromkeys(t.split("(")[0] for t in names)),
+        "--allowed-tools",
+        allow,
+        "--permission-prompts",
+        "none",
+        "--strict-mcp-config",
+        "--model",
+        model,
+    ]
     if effort:
         cmd += ["--effort", effort]
     return cmd
@@ -85,8 +96,7 @@ def transcript_path(cwd, session_id):
 # newer CLIs spill an oversized tool result under /tmp/claude-<uid>/<cwd-slug>/<session>/tool-results
 SPILL = re.compile(r"^/tmp/claude-\d+/[^/]+/[^/]+/tool-results/")
 OUTSIDE = re.compile(r"(^|[\s'\"=<>(])(/|~|\.\.)")
-DENIED = ("No such tool", "disabled for this session", "requires approval",
-          "not allowed", "permission")
+DENIED = ("No such tool", "disabled for this session", "requires approval", "not allowed", "permission")
 
 
 def audit_transcript(path, cwd):
@@ -106,7 +116,7 @@ def audit_transcript(path, cwd):
     with open(path) as f:
         for line in f:
             try:
-                msg = (json.loads(line).get("message") or {})
+                msg = json.loads(line).get("message") or {}
             except json.JSONDecodeError:
                 continue
             stopped += msg.get("stop_reason") == "refusal"
@@ -118,34 +128,43 @@ def audit_transcript(path, cwd):
     # the CLI spills an oversized tool result to <session>/tool-results/ and has the
     # agent Read it back — the agent's own output from inside the workspace, not a reach
     # outside it (first seen: a Grep over feature_catalog.json, walkthrough step 1)
-    spill = os.path.abspath(path[:-len(".jsonl")])
+    spill = os.path.abspath(path[: -len(".jsonl")])
     by, files, breach, attempt = {}, set(), [], []
     for uid, b in uses.items():
         by[b["name"]] = by.get(b["name"], 0) + 1
         inp = b.get("input") or {}
         r = results.get(uid) or {}
         c = r.get("content")
-        txt = c if isinstance(c, str) else " ".join(
-            x.get("text", "") for x in c if isinstance(x, dict)) if isinstance(c, list) else ""
+        txt = (
+            c
+            if isinstance(c, str)
+            else " ".join(x.get("text", "") for x in c if isinstance(x, dict))
+            if isinstance(c, list)
+            else ""
+        )
         denied = bool(r.get("is_error")) and any(k in txt for k in DENIED)
         failed = bool(r.get("is_error")) and not denied
         p = inp.get("file_path") or inp.get("path") or ""
-        p = os.path.join(cwd, p) if p else p      # relative = the agent's cwd, not ours (LU KBc1e4)
+        p = os.path.join(cwd, p) if p else p  # relative = the agent's cwd, not ours (LU KBc1e4)
         cmd = inp.get("command", "")
         # each part of a compound command on its own: the workspace's ./tool, or a read-only
         # command the CLI runs unprompted inside cwd (a live call was denied `cat /etc/hostname`)
         # that names no path outside it (/dev/null is not a reach)
         parts = [x.strip() for x in re.split(r"[;&|]+", cmd) if x.strip()]
-        inside = lambda x: x.startswith("./tool ") or not OUTSIDE.search(
-            x.replace(os.path.abspath(cwd), "").replace("/dev/null", ""))
+        inside = lambda x: (
+            x.startswith("./tool ") or not OUTSIDE.search(x.replace(os.path.abspath(cwd), "").replace("/dev/null", ""))
+        )
         if b["name"] == "Bash" and parts and all(inside(x) for x in parts):
             if cmd.startswith("./tool "):
                 files.add("./tool " + cmd[7:40])
             continue
         if b["name"] == "Bash":
             tag = f"Bash: {inp.get('command', '')[:80]}"
-        elif p and not os.path.abspath(p).startswith((os.path.abspath(cwd), spill)) \
-                and not SPILL.match(os.path.abspath(p)):
+        elif (
+            p
+            and not os.path.abspath(p).startswith((os.path.abspath(cwd), spill))
+            and not SPILL.match(os.path.abspath(p))
+        ):
             tag = f"{b['name']}: {p}"
         else:
             if p and not os.path.abspath(p).startswith(spill) and not SPILL.match(os.path.abspath(p)):
@@ -155,12 +174,17 @@ def audit_transcript(path, cwd):
             attempt.append(f"{tag}  [{'denied' if denied else 'failed'}]")
         else:
             breach.append(tag)
-    return {"found": True, "by_tool": by, "files": sorted(files),
-            "breach": breach, "attempt": attempt, "stopped": stopped}
+    return {
+        "found": True,
+        "by_tool": by,
+        "files": sorted(files),
+        "breach": breach,
+        "attempt": attempt,
+        "stopped": stopped,
+    }
 
 
-def _call_agent(spec_path, prompt, model, log, timeout=900, cwd=None, effort=None,
-                tools=""):
+def _call_agent(spec_path, prompt, model, log, timeout=900, cwd=None, effort=None, tools=""):
     """One isolated `claude -p` turn, from a neutral cwd: the agent answers the brief
     instead of inheriting a repo's context (the first non-isolated attempt replied about
     a docs hook rather than the question). With `tools`, `cwd` should be a `workspace()`.
@@ -171,8 +195,7 @@ def _call_agent(spec_path, prompt, model, log, timeout=900, cwd=None, effort=Non
     t0 = time.time()
     cmd = _agent_cmd(model, effort, tools, cwd)
     try:
-        r = subprocess.run(cmd, input=full, capture_output=True, text=True,
-                           timeout=timeout, cwd=cwd or "/tmp")
+        r = subprocess.run(cmd, input=full, capture_output=True, text=True, timeout=timeout, cwd=cwd or "/tmp")
         try:
             d = json.loads(r.stdout)
         except json.JSONDecodeError:
@@ -184,38 +207,56 @@ def _call_agent(spec_path, prompt, model, log, timeout=900, cwd=None, effort=Non
             if tools and cwd and d.get("session_id"):
                 a = audit_transcript(transcript_path(cwd, d["session_id"]), cwd)
                 if a.get("stopped"):
-                    log("agent.call", os.path.basename(spec_path), model=model,
-                        effort=effort or "default", secs=round(time.time() - t0, 1),
+                    log(
+                        "agent.call",
+                        os.path.basename(spec_path),
+                        model=model,
+                        effort=effort or "default",
+                        secs=round(time.time() - t0, 1),
                         session=d.get("session_id"),
-                        cost_usd=round(d.get("total_cost_usd") or 0, 4), stopped=True)
+                        cost_usd=round(d.get("total_cost_usd") or 0, 4),
+                        stopped=True,
+                    )
                     return "", a
             msg = f"exit {r.returncode}: {r.stderr[:200] or str(d.get('result'))[:200]}"
             raise (AgentLimit if LIMIT.search(msg) else AgentError)(msg)
         reply = d.get("result") or ""
-        log("agent.call", os.path.basename(spec_path),
-            model=model, effort=effort or "default", tools=tools or "none",
-            secs=round(time.time() - t0, 1), turns=d.get("num_turns"),
+        log(
+            "agent.call",
+            os.path.basename(spec_path),
+            model=model,
+            effort=effort or "default",
+            tools=tools or "none",
+            secs=round(time.time() - t0, 1),
+            turns=d.get("num_turns"),
             session=d.get("session_id"),
             cost_usd=round(d.get("total_cost_usd") or 0, 4),
-            prompt_chars=len(full), reply=reply[:4000])
+            prompt_chars=len(full),
+            reply=reply[:4000],
+        )
         a = {}
         if tools and cwd and d.get("session_id"):
             a = audit_transcript(transcript_path(cwd, d["session_id"]), cwd)
             if a.get("found"):
-                log("agent.tools", f"{sum(a['by_tool'].values())} call(s)", **a["by_tool"],
-                    files=[p.replace(cwd.rstrip("/") + "/", "") for p in a["files"]])
+                log(
+                    "agent.tools",
+                    f"{sum(a['by_tool'].values())} call(s)",
+                    **a["by_tool"],
+                    files=[p.replace(cwd.rstrip("/") + "/", "") for p in a["files"]],
+                )
                 if a["attempt"]:
-                    log("agent.denied", f"{len(a['attempt'])} call(s) outside the workspace "
-                                        f"were stopped", calls=a["attempt"])
+                    log(
+                        "agent.denied",
+                        f"{len(a['attempt'])} call(s) outside the workspace were stopped",
+                        calls=a["attempt"],
+                    )
                 if a["breach"]:
-                    log("agent.breach", f"{len(a['breach'])} call(s) EXECUTED outside the "
-                                        f"workspace", calls=a["breach"])
+                    log("agent.breach", f"{len(a['breach'])} call(s) EXECUTED outside the workspace", calls=a["breach"])
         return reply, a
     except AgentLimit:
         raise
-    except Exception as e:                       # noqa: BLE001 — advisory: never fatal
-        log("agent.fail", f"{os.path.basename(spec_path)}: {e}",
-            secs=round(time.time() - t0, 1))
+    except Exception as e:  # noqa: BLE001 — advisory: never fatal
+        log("agent.fail", f"{os.path.basename(spec_path)}: {e}", secs=round(time.time() - t0, 1))
         raise AgentError(str(e)) from e
 
 
@@ -234,7 +275,7 @@ def json_block(text):
     return None
 
 
-DEFAULT_MODEL = "claude-opus-5-5"   # pinned, not the `opus` alias: a run records what it ran on
+DEFAULT_MODEL = "claude-opus-5-5"  # pinned, not the `opus` alias: a run records what it ran on
 
 
 @dataclass
@@ -255,17 +296,20 @@ class LLM:
         for attempt, eff in enumerate(efforts):
             for wait in range(self.limit_tries + 1):
                 try:
-                    reply, a = _call_agent(spec_path, prompt, self.model, log, self.timeout,
-                                           cwd, eff, self.tools)
+                    reply, a = _call_agent(spec_path, prompt, self.model, log, self.timeout, cwd, eff, self.tools)
                     break
                 except AgentLimit as e:
                     if wait == self.limit_tries:
                         raise
-                    log("agent.limit", f"usage limit — waiting {self.limit_wait}s "
-                                       f"({wait + 1}/{self.limit_tries}): {str(e)[:120]}")
+                    log(
+                        "agent.limit",
+                        f"usage limit — waiting {self.limit_wait}s ({wait + 1}/{self.limit_tries}): {str(e)[:120]}",
+                    )
                     time.sleep(self.limit_wait)
             if not a.get("stopped") or json_block(reply) is not None:
                 return reply
-            log("agent.stopped", f"safeguards stopped the answer at effort {eff} "
-                                 f"(attempt {attempt + 1} of {len(efforts)})")
+            log(
+                "agent.stopped",
+                f"safeguards stopped the answer at effort {eff} (attempt {attempt + 1} of {len(efforts)})",
+            )
         return reply

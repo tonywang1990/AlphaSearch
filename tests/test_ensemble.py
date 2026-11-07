@@ -66,6 +66,14 @@ def test_weights_maximise_ic():
         assert ic(c, S, list(range(5)), w + rng.normal(0, 0.05, 5)) <= best + 1e-12
 
 
+def test_permuted_members_have_zero_t_even_with_roundoff(infra, monkeypatch):
+    sel = Selector(Stats(infra.moments("validation")), Stats(infra.moments("fit")), Cfg(k_max=4))
+    # A measured failure: tiny numerator and SE manufactured a significant t.
+    monkeypatch.setattr("alphasearch.ensemble.select.paired", lambda *args: (1e-15, 1e-16))
+    assert sel.t()([0, 1, 2], [2, 0, 1]) == 0.0
+    assert sel.t()([0, 1, 2], [0, 1, 3]) > 2.0
+
+
 def test_host_mode_keeps_the_host(infra):
     host = infra.describe().reference[0]
     sel = Selector(Stats(infra.moments("validation")), Stats(infra.moments("fit")), Cfg(k_max=4, host=host))
@@ -80,10 +88,12 @@ def test_ev_selection_goes_through_infra_in_batches(infra):
     def spy(sets, objective):
         calls.append(len(sets))
         return real(sets, objective)
+
     infra.score_many = spy
     try:
-        sel = Selector(Stats(infra.moments("validation")), Stats(infra.moments("fit")),
-                       Cfg(k_max=3, objective="ev"), infra)
+        sel = Selector(
+            Stats(infra.moments("validation")), Stats(infra.moments("fit")), Cfg(k_max=3, objective="ev"), infra
+        )
         F = sel.select([infra.describe().reference])
     finally:
         infra.score_many = real

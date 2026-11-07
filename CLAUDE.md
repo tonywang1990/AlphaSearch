@@ -15,6 +15,7 @@ AlphaSearch: the research agent over futs-infra. Read `docs/design.md` before ch
   intended behaviour change re-records the golden and says why in the commit.
 - **Honesty rules**: the agent sees val-tier summaries only; no test verdict reaches a workspace
   (`Journal.visible` strips `test*` keys); oos is the owner's `evaluate`, never called here.
-- **Lean**: delete by default, no defensive code for what cannot happen, Python files <= 400 lines,
+- **Lean**: delete by default, no defensive code for what cannot happen, Python files <= 700 lines
+  (prefer <= 400; larger modules need one clear responsibility),
   comments only where they carry a measured reason. Use `FakeInfra` for every test.
-- **Run tests**: `pytest` (synthetic infra, ~10 s).
+- **Checks**: `make check` (locked tools, lint/format, types, synthetic tests). See README for setup.
