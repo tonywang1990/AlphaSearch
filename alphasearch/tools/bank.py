@@ -57,7 +57,7 @@ def predcheck(obs, args):
 
 @tool("crossval", "select on half the val days from prod, score on the other: what the last batch and the bank add")
 def crossval(obs, args):
-    return obs.sel.crossval(obs.ref, recent=obs.recent)
+    return obs.sel.crossval(obs.ref if obs.cfg.reference_in_bank else [], recent=obs.recent)
 
 
 @tool("search [--starts N]", "multi-start local search over ensembles: best sets, t over F, held-out gain (IC only)")

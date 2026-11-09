@@ -88,3 +88,31 @@ def test_ev_selection_goes_through_infra_in_batches(infra):
     finally:
         infra.score_many = real
     assert 0 < len(F) <= 3 and max(calls) > 1
+
+
+def test_credibility_scores_held_out_halves_without_the_veto_and_the_ridge_reshapes_weights(infra):
+    """A vetoed scorer on half the days made every SC full6 crossval fold NaN; credibility and crossval score a
+    held-out half on the plain IC. The weight ridge pulls a set's weights toward its members' own."""
+    val, fit = Stats(infra.moments("validation"), ["10s"]), Stats(infra.moments("fit"), ["10s"])
+    ref = [n for n, _ in val.m.reference]
+    sel = Selector(val, fit, Cfg(k_max=4, swap_t=0.0, veto_min=0.0), veto=Stats(infra.moments("validation"), ["60s"]))
+    F = sel.select([ref])
+    c = sel.credibility(F, ref)
+    assert all(np.isfinite(c["crossfit"])) and np.isfinite(sel.crossval(ref)["bank_value"])
+    assert c["credible"] == (not c["why"]) and len(c["halves_gain"]) == 2 and set(c["periods"]) == set(val.m.periods)
+    jj = sel.ix(F)
+    ridged = Selector(val, fit, Cfg(k_max=4, weight_ridge=4.0))
+    assert not np.allclose(sel.weights(jj), ridged.weights(jj))
+
+
+def test_credibility_refuses_an_F_that_trails_the_reference_in_a_period(infra):
+    """SC full7's IC@60 pick was +17% in storm and +0.5% in calm on val: a period mean let one period carry it. The
+    floor is the gate's, not the search's (inside the fill, no first member beats prod in every period)."""
+    val, fit = Stats(infra.moments("validation"), ["10s"]), Stats(infra.moments("fit"), ["10s"])
+    ref = [n for n, _ in val.m.reference]
+    F = Selector(val, fit, Cfg(k_max=4, swap_t=0.0)).select([ref])
+    worst = min(Selector(val, fit, Cfg(k_max=4)).credibility(F, ref)["periods"].values())
+    high = Selector(val, fit, Cfg(k_max=4, swap_t=0.0, period_floor=worst + 0.01)).credibility(F, ref)
+    low = Selector(val, fit, Cfg(k_max=4, swap_t=0.0, period_floor=worst - 0.01)).credibility(F, ref)
+    assert not high["credible"] and any(" < " in w and "cross-fit" not in w for w in high["why"])
+    assert not any(" < " in w and "cross-fit" not in w for w in low["why"])

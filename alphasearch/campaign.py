@@ -75,11 +75,14 @@ def _stopped(out, rounds, why, log):
     json.dump({"rounds": rounds, "reason": why}, open(os.path.join(out, "stop.json"), "w"))
 
 
-def _final(infra, desc, out, journal, log):
+def _final(infra, cfg, desc, out, journal, log):
     """Infra's final gate on the last round's F, once, when the campaign registered one (a live campaign's
     reserve is held out of the search budget, and its deadline leaves the time)."""
     path = os.path.join(out, "final.json")
     if desc.universe or not journal.iters or os.path.exists(path) or not infra.budget().final_reserve:
+        return
+    if not cfg.final_auto:                     # the final frame is one-shot: the owner spends it
+        log("final", "held for the owner (final_auto=False)")
         return
     legs = [(n, w) for n, w in journal.iters[-1]["F_after_legs"]]
     try:
@@ -108,7 +111,8 @@ def run(infra, cfg, out):
         if why:
             _stopped(out, it, why, log)
             break
-        start = desc.reference if cfg.frontier or not journal.iters else journal.iters[-1]["F_after"]
+        start = (desc.reference if cfg.reference_in_bank else []) if cfg.frontier or not journal.iters \
+            else journal.iters[-1]["F_after"]
         obs = rnd.observe(infra, desc, cfg, it, out, list(start), carry)
         laps.append(time.time())
         workspace.build(obs, journal=journal, budget={"iterations_left": cfg.rounds - it, "models_this_iteration":
@@ -149,5 +153,5 @@ def run(infra, cfg, out):
                                eval_report=ev)
         if cfg.experience:
             experience.add(cfg.experience, ep)
-    _final(infra, desc, out, journal, log)
+    _final(infra, cfg, desc, out, journal, log)
     return out

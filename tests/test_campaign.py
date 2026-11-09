@@ -214,3 +214,57 @@ def test_live_members_are_priced_by_what_they_serve():
     assert cost["lin"] == {"a", "b"} and len(cost["gru1"]) == 5 and cost["prod"] == cost["bare"] == frozenset()
     assert len(cost["gru1"] | cost["gru2"]) == 8                       # 2 shared NA inputs + 3 + 3
     assert _costs(infra, SimpleNamespace(reference=[]), Config()) is None
+
+
+def test_trainer_options_name_a_variant_the_train_action_admits():
+    """`<recipe>@key=value` is a variant of a legal recipe (trained or not) with approved trainer options; its name
+    round-trips through the recipe infra reports, and an unapproved option or a duplicate is refused."""
+    from types import SimpleNamespace
+
+    from alphasearch import actions
+    from alphasearch.infra.contract import name_of, split_name
+    axes = {"arch": ["gru", "tree"], "horizon": ["10s"]}
+    gru, tree = {"arch": "gru", "horizon": "10s"}, {"arch": "tree", "horizon": "10s"}
+    v = {**gru, "L": 16, "hidden": 128}
+    assert name_of(v, axes) == "gru.10s@L=16,hidden=128"
+    assert split_name(name_of(v, axes)) == ("gru.10s", {"L": 16, "hidden": 128})
+    obs = SimpleNamespace(untrained={"tree.10s": tree}, coords={"gru.10s": gru, "gru.10s@L=8": {**gru, "L": 8}},
+                          desc=SimpleNamespace(axes=axes, options={"gru": {"L": [4, 8, 16], "hidden": [32, 64, 128]},
+                                                                   "tree": {"num_leaves": [32, 128]}}))
+    picks, row = actions.train(obs, {"recipes": ["gru.10s@L=16,hidden=128", "tree.10s", "gru.10s@L=8", "gru.10s@L=32",
+                                                 "gru.10s", "gru.10s@lr=0.1", "gru.10s@num_leaves=32"]}, 5, None)
+    assert picks == ["gru.10s@L=16,hidden=128", "tree.10s"] and obs.untrained["gru.10s@L=16,hidden=128"] == v
+    no = lambda k: f"options not approved for gru: ['{k}']"
+    assert row["refused_recipes"] == {"gru.10s@L=8": "already trained", "gru.10s@L=32": no("L"),
+                                      "gru.10s": "already trained", "gru.10s@lr=0.1": no("lr"),
+                                      "gru.10s@num_leaves=32": no("num_leaves")}
+
+
+def test_without_the_reference_in_the_bank_no_set_holds_prod(tmp_path):
+    """reference_in_bank=False: prod stays the score's 1.0, but F starts empty and no selected set holds it."""
+    from alphasearch.infra.fake import FakeInfra
+    infra = FakeInfra(seed=3)
+    ref = set(infra.describe().reference)
+    campaign.run(infra, Config(policy="surrogate", rounds=2, models=4, seed=1, reference_in_bank=False),
+                 str(tmp_path / "c"))
+    rows = [json.loads(x) for x in open(tmp_path / "c" / "iters.jsonl")]
+    assert rows and all(not ref & set(r["F"]) and not ref & set(r["F_after"]) for r in rows)
+    assert rows[0]["F"] == []
+
+
+def test_select_label_and_the_veto_label_shape_the_pick(tmp_path):
+    """F is selected and weighted on `select_label`; with a veto label, no selected set trails the reference on it."""
+    from alphasearch.infra.fake import FakeInfra
+    from alphasearch.round import selector
+    infra = FakeInfra(seed=3)
+    desc = infra.describe()
+    plain = selector(infra, desc, Config(select_label="30s"))
+    assert plain.val.L == [desc.labels.index("30s")]
+    vetoed = selector(infra, desc, Config(select_label="30s", veto_label="10s", veto_min=1.0))
+    floor = vetoed.veto.per_period(vetoed.veto.ones())
+    from alphasearch.ensemble.moments import score
+    F = vetoed.select([desc.reference])
+    assert F and score(floor, *vetoed.blend(vetoed.ix(F))) >= 1.0
+    strict = selector(infra, desc, Config(select_label="30s", veto_label="10s", veto_min=1e9))
+    assert strict.select([]) == []
+

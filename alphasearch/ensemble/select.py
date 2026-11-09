@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from alphasearch.ensemble.moments import Stats, fit_weights, paired, paired_daily, score
+from alphasearch.ensemble.moments import Stats, fit_weights, paired, paired_daily, periods, score
 from alphasearch.ensemble.walkforward import WalkForward
 
 SWAP_T = 2.0      # LU: unmargined swaps chosen on half the val days lost 0.06 on the other half
@@ -24,15 +24,21 @@ class Cfg:
     wf_chunks: int = 4
     worst_weight: float = 0.5
     weight_shrink: float = 0.25
+    weight_ridge: float = 0.0      # ic weights: w = (S + ridge * diag S)^-1 c, against offsetting legs
     regime_cells: bool = False
     keep_reference: bool = False   # the reference's legs stay in every selected set (anchored on the incumbent)
     cost: dict | None = None       # member -> its served features (frozenset); a set costs their union
     cost_lambda: float = 0.0       # score lost per 100 served features (the latency price of complexity)
+    exclude: tuple = ()            # members no set may hold (prod when it is only the score's 1.0)
+    veto_min: float = 1.0          # with a veto label: a set's IC ratio to the reference on it must reach this
+    period_floor: float = 1.0      # credibility: F's ratio to the reference in every period (a gate, not a search
+                                   # constraint: inside the fill no first member beats prod everywhere, SC full7)
+    gate_t: float = 3.0            # credibility: the cross-fit gain's paired t a candidate needs
 
 
 class Selector:
-    def __init__(self, val: Stats, fit: Stats, cfg: Cfg, infra=None):
-        self.val, self.fit, self.cfg, self.infra = val, fit, cfg, infra
+    def __init__(self, val: Stats, fit: Stats, cfg: Cfg, infra=None, veto: Stats | None = None):
+        self.val, self.fit, self.cfg, self.infra, self.veto = val, fit, cfg, infra, veto
         self.names = val.names
         cf, Sf = fit.moments(fit.ones())
         self.fit_order = [fit.idx[n] for n in self.names]
@@ -48,7 +54,8 @@ class Selector:
             return np.array([1.0 if self.names[j] == self.cfg.host else self.cfg.corrector_w for j in jj])
         if self.wf:
             return self.wf.weights(jj)
-        return fit_weights(self.c_fit[jj], self.S_fit[np.ix_(jj, jj)])
+        S = self.S_fit[np.ix_(jj, jj)]
+        return fit_weights(self.c_fit[jj], S + self.cfg.weight_ridge * np.diag(np.diag(S)))
 
     def blend(self, jj):
         jj = list(jj)
@@ -87,7 +94,12 @@ class Selector:
             return f
         if self.cfg.objective == "ic":
             per = self.val.per_period(self.val.ones() if counts is None else counts)
-            f = lambda jj: score(per, *self.blend(jj)) if len(jj) else float("nan")
+            floor = self.veto.per_period(self.veto.ones() if counts is None else counts) if self.veto else None
+
+            def f(jj):                 # a set below the veto label's floor is never picked
+                if not len(jj) or floor and not score(floor, *self.blend(jj)) >= self.cfg.veto_min:
+                    return float("nan")
+                return score(per, *self.blend(jj))
             f.many = lambda sets: [f(s) for s in sets]
             return f
         assert counts is None, f"day weights need the moment form; {self.cfg.objective} has none"
@@ -183,7 +195,8 @@ class Selector:
 
     def pool(self, exclude=()):
         c = self.val.moments(self.val.ones())[0]
-        return [j for j, n in enumerate(self.names) if np.isfinite(c[j]) and n not in exclude]
+        return [j for j, n in enumerate(self.names) if np.isfinite(c[j]) and n not in exclude
+                and n not in self.cfg.exclude]
 
     def select(self, starts=(), exclude=(), counts=None):
         """-> member names: the fill + gated swaps from empty (the host alone in host mode) and
@@ -204,6 +217,42 @@ class Selector:
         return [self.names[j] for j in best]
 
     # -- the agent's honest estimates (IC only) ------------------------------------------
+    def _plain(self, counts):
+        """The selection score on the days `counts` weights, with no veto: a held-out half is scored,
+        not admitted (a vetoed scorer made every SC full6 crossval fold NaN)."""
+        per = self.val.per_period(counts)
+        return lambda jj: score(per, *self.blend(jj)) if len(jj) else float("nan")
+
+    def credibility(self, F, start):
+        """Is F more than val fitting? On the val days only (the agent may read it): the whole selection
+        from `start` run on each alternate-day half, its gain over the reference paired on the other half
+        (cross-fit t); F's gain in the earlier and later half of each period's days; F per period.
+        SC full7's IC@60 pick: val +7.8% (t 2.3) carried by storm (calm +0.5%), cross-fit +5.9%, test
+        +2.2%, final days -3.0%. None off the IC moment form."""
+        if self.cfg.objective != "ic":
+            return None
+        ref = ([j for j, _ in self.val.ref], np.array([w for _, w in self.val.ref]))
+        h = self.val.halves()
+        folds = [(self.ix(self.select([start], counts=h[a])), h[b]) for a, b in ((0, 1), (1, 0))]
+        xf = [paired(self.val, c, self.blend(jj), ref) if jj else (np.nan, np.nan) for jj, c in folds]
+        g, se = np.mean([x for x, _ in xf]), np.sqrt(sum(s * s for _, s in xf)) / 2
+        out = {"crossfit": [round(self._plain(c)(jj), 5) for jj, c in folds], "crossfit_gain": round(float(g), 5),
+               "crossfit_t": round(float(g / se), 2) if se > 0 else None}
+        if not F:
+            return {**out, "credible": False, "why": ["F is empty"]}
+        b = self.blend(self.ix(F))
+        th = [paired(self.val, c, b, ref) for c in self.val.time_halves()]
+        per_period = self.val.per_period(self.val.ones())
+        out.update(halves_gain=[round(x, 5) for x, _ in th],
+                   halves_t=[round(x / s, 2) if s > 0 else None for x, s in th],
+                   periods={self.val.m.periods[k]: round(float(v), 4)
+                            for (k, *_), v in zip(per_period, periods(per_period, *b), strict=True)})
+        floor, t = self.cfg.period_floor, out["crossfit_t"]
+        why = ([f"cross-fit t {t} < {self.cfg.gate_t}"] if not (t or 0) >= self.cfg.gate_t else []) + \
+              [f"{'earlier' if i == 0 else 'later'} half gain {x:+.4f}" for i, (x, _) in enumerate(th) if not x > 0] + \
+              [f"{p} {v:.3f} < {floor}" for p, v in out["periods"].items() if not v >= floor]
+        return {**out, "credible": not why, "why": why}
+
     def crossval(self, base, recent=()):
         """On each half of the val days select from `base` WITH and WITHOUT the `recent`
         models and score on the other half: latest_models_value = what the last batch adds,
@@ -213,7 +262,7 @@ class Selector:
         h = self.val.halves()
         latest, bank = [], []
         for a, b in ((0, 1), (1, 0)):
-            fb = self.scorer(h[b])
+            fb = self._plain(h[b])
             with_ = fb(self.ix(self.select([base], counts=h[a])))
             without = fb(self.ix(self.select([base], exclude=set(recent), counts=h[a])))
             latest.append(with_ - without)

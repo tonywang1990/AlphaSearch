@@ -295,6 +295,33 @@
 "linear.10s.ret.rs_fx"
 ],
 "F_after_val": 1.843034323382537,
+"F_credibility": {
+"credible": false,
+"crossfit": [
+0.99821,
+1.14212
+],
+"crossfit_gain": 0.07016,
+"crossfit_t": null,
+"halves_gain": [
+-0.08097,
+0.24387
+],
+"halves_t": [
+null,
+null
+],
+"periods": {
+"calm": 0.8904,
+"recent": 1.2244,
+"storm": 1.071
+},
+"why": [
+"cross-fit t None < 3.0",
+"earlier half gain -0.0810",
+"calm 0.890 < 1.0"
+]
+},
 "F_val": 1.06196621870095,
 "bank": 8,
 "failed": [],
@@ -329,6 +356,31 @@
 "tree.60s.ret.rs_fx"
 ],
 "F_after_val": 2.184127100233088,
+"F_credibility": {
+"credible": false,
+"crossfit": [
+1.66078,
+2.07767
+],
+"crossfit_gain": 0.86923,
+"crossfit_t": null,
+"halves_gain": [
+0.70125,
+1.04159
+],
+"halves_t": [
+null,
+null
+],
+"periods": {
+"calm": 1.6721,
+"recent": 2.0193,
+"storm": 1.8377
+},
+"why": [
+"cross-fit t None < 3.0"
+]
+},
 "F_val": 1.843034323382537,
 "bank": 14,
 "failed": [],
@@ -612,6 +664,31 @@
 "weight": 0.0842
 }
 ],
+"F_credibility": {
+"credible": false,
+"crossfit": [
+1.66078,
+2.07767
+],
+"crossfit_gain": 0.86923,
+"crossfit_t": null,
+"halves_gain": [
+0.70125,
+1.04159
+],
+"halves_t": [
+null,
+null
+],
+"periods": {
+"calm": 1.6721,
+"recent": 2.0193,
+"storm": 1.8377
+},
+"why": [
+"cross-fit t None < 3.0"
+]
+},
 "F_val": 1.843034323382537,
 "budget": {
 "compute_minutes_left": 16666667,
@@ -1323,6 +1400,31 @@
 "tree.30s.skip.agg_b"
 ],
 "F_after_val": 3.726640432325162,
+"F_credibility": {
+"credible": false,
+"crossfit": [
+3.66626,
+3.38026
+],
+"crossfit_gain": 2.52326,
+"crossfit_t": null,
+"halves_gain": [
+1.67088,
+10.5867
+],
+"halves_t": [
+null,
+null
+],
+"periods": {
+"calm": 2.1918,
+"recent": 5.6634,
+"storm": 3.3248
+},
+"why": [
+"cross-fit t None < 3.0"
+]
+},
 "F_val": 3.726640432325162,
 "bank": 20,
 "failed": [],
@@ -1357,6 +1459,31 @@
 "tree.30s.skip.agg_b"
 ],
 "F_after_val": 3.800192862707424,
+"F_credibility": {
+"credible": false,
+"crossfit": [
+3.73093,
+3.38026
+],
+"crossfit_gain": 2.55559,
+"crossfit_t": null,
+"halves_gain": [
+1.67088,
+10.5867
+],
+"halves_t": [
+null,
+null
+],
+"periods": {
+"calm": 2.1918,
+"recent": 5.6634,
+"storm": 3.3248
+},
+"why": [
+"cross-fit t None < 3.0"
+]
+},
 "F_val": 3.726640432325162,
 "bank": 26,
 "failed": [],
@@ -1467,6 +1594,31 @@
 "weight": -0.1369
 }
 ],
+"F_credibility": {
+"credible": false,
+"crossfit": [
+3.73093,
+3.38026
+],
+"crossfit_gain": 2.55559,
+"crossfit_t": null,
+"halves_gain": [
+1.67088,
+10.5867
+],
+"halves_t": [
+null,
+null
+],
+"periods": {
+"calm": 2.1918,
+"recent": 5.6634,
+"storm": 3.3248
+},
+"why": [
+"cross-fit t None < 3.0"
+]
+},
 "F_val": 3.726640432325162,
 "budget": {
 "compute_minutes_left": 16666667,
@@ -1786,6 +1938,31 @@
 "gru.30s.skip.agg_b"
 ],
 "F_after_val": 1.5759934118337302,
+"F_credibility": {
+"credible": false,
+"crossfit": [
+1.01303,
+1.01534
+],
+"crossfit_gain": 0.01418,
+"crossfit_t": null,
+"halves_gain": [
+0.01507,
+0.0178
+],
+"halves_t": [
+null,
+null
+],
+"periods": {
+"calm": 1.0146,
+"recent": 1.0167,
+"storm": 1.0127
+},
+"why": [
+"cross-fit t None < 3.0"
+]
+},
 "F_val": 1.0146880064129464,
 "bank": 5,
 "failed": [],
@@ -1816,6 +1993,31 @@
 "linear.10s.ret.agg_b"
 ],
 "F_after_val": 1.9635585552732275,
+"F_credibility": {
+"credible": false,
+"crossfit": [
+1.46705,
+1.7174
+],
+"crossfit_gain": 0.59223,
+"crossfit_t": null,
+"halves_gain": [
+0.86733,
+0.51213
+],
+"halves_t": [
+null,
+null
+],
+"periods": {
+"calm": 1.676,
+"recent": 1.4559,
+"storm": 1.5961
+},
+"why": [
+"cross-fit t None < 3.0"
+]
+},
 "F_val": 1.5759934118337302,
 "bank": 8,
 "failed": [],
@@ -1847,6 +2049,31 @@
 "linear.60s.ret.book"
 ],
 "F_after_val": 2.092568195795494,
+"F_credibility": {
+"credible": false,
+"crossfit": [
+1.72757,
+2.34571
+],
+"crossfit_gain": 1.03664,
+"crossfit_t": null,
+"halves_gain": [
+1.23292,
+1.04974
+],
+"halves_t": [
+null,
+null
+],
+"periods": {
+"calm": 2.0946,
+"recent": 1.8394,
+"storm": 1.9567
+},
+"why": [
+"cross-fit t None < 3.0"
+]
+},
 "F_val": 1.9635585552732275,
 "bank": 11,
 "failed": [],
@@ -2074,6 +2301,31 @@
 "weight": 0.139
 }
 ],
+"F_credibility": {
+"credible": false,
+"crossfit": [
+1.72757,
+2.34571
+],
+"crossfit_gain": 1.03664,
+"crossfit_t": null,
+"halves_gain": [
+1.23292,
+1.04974
+],
+"halves_t": [
+null,
+null
+],
+"periods": {
+"calm": 2.0946,
+"recent": 1.8394,
+"storm": 1.9567
+},
+"why": [
+"cross-fit t None < 3.0"
+]
+},
 "F_val": 1.9635585552732275,
 "budget": {
 "compute_minutes_left": 16666667,
@@ -2586,6 +2838,31 @@
 "linear.10s.ret.agg_b"
 ],
 "F_after_val": 2.06089015025232,
+"F_credibility": {
+"credible": false,
+"crossfit": [
+1.01303,
+1.01534
+],
+"crossfit_gain": 0.01418,
+"crossfit_t": null,
+"halves_gain": [
+0.01507,
+0.0178
+],
+"halves_t": [
+null,
+null
+],
+"periods": {
+"calm": 1.0146,
+"recent": 1.0167,
+"storm": 1.0127
+},
+"why": [
+"cross-fit t None < 3.0"
+]
+},
 "F_val": 1.0146880064129464,
 "bank": 8,
 "failed": [],
@@ -2620,6 +2897,31 @@
 "gru.60s.skip.agg_b"
 ],
 "F_after_val": 2.23294433713524,
+"F_credibility": {
+"credible": false,
+"crossfit": [
+1.92109,
+2.31952
+],
+"crossfit_gain": 1.12031,
+"crossfit_t": null,
+"halves_gain": [
+1.28849,
+1.21923
+],
+"halves_t": [
+null,
+null
+],
+"periods": {
+"calm": 2.254,
+"recent": 1.9889,
+"storm": 1.9398
+},
+"why": [
+"cross-fit t None < 3.0"
+]
+},
 "F_val": 2.06089015025232,
 "bank": 14,
 "failed": [],
@@ -2654,6 +2956,31 @@
 "gru.60s.skip.agg_b"
 ],
 "F_after_val": 2.23294433713524,
+"F_credibility": {
+"credible": false,
+"crossfit": [
+2.03181,
+2.60835
+],
+"crossfit_gain": 1.32008,
+"crossfit_t": null,
+"halves_gain": [
+1.46286,
+1.44522
+],
+"halves_t": [
+null,
+null
+],
+"periods": {
+"calm": 2.4157,
+"recent": 2.1298,
+"storm": 2.1533
+},
+"why": [
+"cross-fit t None < 3.0"
+]
+},
 "F_val": 2.23294433713524,
 "bank": 20,
 "failed": [],
@@ -2802,6 +3129,31 @@
 "weight": 0.1531
 }
 ],
+"F_credibility": {
+"credible": false,
+"crossfit": [
+2.03181,
+2.60835
+],
+"crossfit_gain": 1.32008,
+"crossfit_t": null,
+"halves_gain": [
+1.46286,
+1.44522
+],
+"halves_t": [
+null,
+null
+],
+"periods": {
+"calm": 2.4157,
+"recent": 2.1298,
+"storm": 2.1533
+},
+"why": [
+"cross-fit t None < 3.0"
+]
+},
 "F_val": 2.23294433713524,
 "budget": {
 "compute_minutes_left": 16666667,

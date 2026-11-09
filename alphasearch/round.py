@@ -41,6 +41,7 @@ class Observation:
     gains: dict                   # every trained member's marginal gain to F
     swaps: dict                   # every non-member's best swap into F: (gain, the member it replaces)
     F_score: float
+    credibility: dict | None      # is F more than val fitting: cross-fit t, time halves, periods (Selector.credibility)
     coords: dict                  # every trained member's recipe
     sur: Surrogate
     feature_sets: dict
@@ -90,10 +91,12 @@ def selector(infra, desc, cfg):
     """The fixed selection over the bank. `ic_drift` selects on the mean IC over every label infra
     carries (10s/30s/60s on LU), weights fitted to the same target; `ic` on the fit label; any other
     objective is scored by infra in batches."""
-    labels = desc.labels if cfg.select_objective == "ic_drift" else [desc.fit_label]
+    labels = desc.labels if cfg.select_objective == "ic_drift" else [cfg.select_label or desc.fit_label]
     scfg = Cfg(k_max=desc.k_max, host=desc.host, corrector_w=cfg.corrector_w, swap_t=cfg.swap_t,
+               exclude=() if cfg.reference_in_bank else tuple(desc.reference), veto_min=cfg.veto_min,
                objective="ic" if cfg.select_objective in ("ic", "ic_drift") else cfg.select_objective,
                wf_chunks=cfg.wf_chunks, worst_weight=cfg.worst_weight, weight_shrink=cfg.weight_shrink,
+               weight_ridge=cfg.weight_ridge, period_floor=cfg.period_floor, gate_t=cfg.gate_t,
                regime_cells=cfg.regime_cells, keep_reference=cfg.keep_reference,
                cost=_costs(infra, desc, cfg), cost_lambda=cfg.cost_lambda)
     if scfg.objective == "wf":               # the SoM aggregator: fit + validation, walked forward
@@ -101,7 +104,8 @@ def selector(infra, desc, cfg):
         return Selector(agg, agg, scfg, infra)
     val = Stats(infra.moments("validation"), labels)
     fit = val if cfg.weights_block == "validation" else Stats(infra.moments("fit"), labels)
-    return Selector(val, fit, scfg, infra)
+    veto = Stats(infra.moments("validation"), [cfg.veto_label]) if cfg.veto_label else None
+    return Selector(val, fit, scfg, infra, veto=veto)
 
 
 def observe(infra, desc, cfg, it, out, start, carry):
@@ -114,6 +118,7 @@ def observe(infra, desc, cfg, it, out, start, carry):
     target = {n: y[n] for n in gains if np.isfinite(gains[n])}
     obs = Observation(it=it, ws=os.path.join(out, f"it_{it}"), infra=infra, desc=desc, cfg=cfg, F=F,
                       ref=list(desc.reference), sel=sel, gains=gains, swaps=swaps, F_score=base, coords=coords,
+                      credibility=sel.credibility(F, start),
                       sur=Surrogate(list(desc.axes), seed=it).fit(coords, target), **carry)
     obs.refresh_recipes()
     os.makedirs(obs.ws, exist_ok=True)
@@ -149,7 +154,9 @@ def act(obs, plan, policy, models, rng, until=None):
     return Act(picks=picks, rows=rows, trained=trained, failed=bad, seconds={m.name: m.seconds for m in ready})
 
 
-def _verdict(infra, sel, new, old, log):
+def _verdict(infra, sel, new, old, log, ref=()):
+    """F' vs F on the sealed test days; an empty F (prod kept out of the bank) is judged against prod."""
+    old = old or list(ref)
     if set(new) == set(old):
         return "flat"
     try:
@@ -173,7 +180,7 @@ def evaluate(obs, plan, a, log):
     obs.recent = sorted(set(a.trained) & have)
     desc = infra.describe()
     sel = selector(infra, desc, cfg)
-    start = obs.ref if cfg.frontier else F
+    start = (obs.ref if cfg.reference_in_bank else []) if cfg.frontier else F
     new = sel.select([start])
     for e in plan.experiments:                          # the agent's own ensemble, at its bar
         if e.get("action") == "ensemble":
@@ -185,7 +192,7 @@ def evaluate(obs, plan, a, log):
             if e["_adopted"]:
                 new = prop
     f = sel.scorer()
-    verdict = _verdict(infra, sel, new, F, log)
+    verdict = _verdict(infra, sel, new, F, log, obs.ref)
     for r in a.rows:                                    # each experiment alone
         e = next((x for x in plan.experiments if x.get("id") == r["id"]), {})
         if r.get("action") == "ensemble":
@@ -195,13 +202,14 @@ def evaluate(obs, plan, a, log):
         r.update({"failed": [m for m in r["trained"] if m not in have],
                   "entered_F": sorted(set(new) & set(r["trained"])),
                   "val_gain": f(sel.ix(alone)) - f(sel.ix(F)),
-                  "test_verdict": _verdict(infra, sel, alone, F, log) if r["trained"] else "flat"})
+                  "test_verdict": _verdict(infra, sel, alone, F, log, obs.ref) if r["trained"] else "flat"})
     return Outcome(F_after=new, sel=sel, verdict=verdict, have=have), desc
 
 
 def record(journal, obs, plan, a, o, tools, policy, log, secs):
     row = {"iteration": obs.it, "policy": policy.name, "F": obs.F, "F_after": o.F_after,
-           "F_val": obs.sel.scorer()(obs.sel.ix(obs.F)), "F_after_val": o.sel.scorer()(o.sel.ix(o.F_after)),
+           "F_val": obs.sel.scorer()(obs.sel.ix(obs.F)), "F_credibility": obs.credibility,
+           "F_after_val": o.sel.scorer()(o.sel.ix(o.F_after)),
            "test_verdict": o.verdict, "trained": a.trained, "failed": sorted(a.failed), "bank": len(o.have),
            "llm_usd": round(log.cost, 2), "secs": round(secs), "stop": plan.stop, "train_seconds": a.seconds,
            "F_after_legs": o.sel.legs(o.sel.ix(o.F_after)),             # exactly what this round would serve

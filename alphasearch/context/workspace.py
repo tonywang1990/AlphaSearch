@@ -27,6 +27,7 @@ def state(obs, ctx):
         "swap_t": sel.cfg.swap_t, "k_max": sel.cfg.k_max, "budget": ctx["budget"],
         "F": [{"member": n, "weight": round(float(x), 4)} for n, x in sel.legs(sel.ix(obs.F))],
         "F_val": f(sel.ix(obs.F)), "prod_val": f(sel.ix(obs.ref)) if obs.ref else None, "host": sel.cfg.host,
+        "F_credibility": obs.credibility,
         "note": "scores are ratios to the prod reference (1.0 = prod) averaged over periods"
         if obs.ref else f"scores are the raw {obs.desc.objective}"})
 
@@ -41,6 +42,8 @@ def grammar(obs, ctx):
     _json(obs.ws, "grammar.json", obs.desc.axes)
     _json(obs.ws, "grammar_notes.json", obs.desc.notes)
     _json(obs.ws, "feature_sets.json", obs.desc.feature_set_defs or obs.feature_sets)
+    if obs.desc.options:
+        _json(obs.ws, "options.json", obs.desc.options)
 
 
 def ledger(obs, ctx):

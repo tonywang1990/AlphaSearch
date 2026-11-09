@@ -52,6 +52,7 @@ class FutsInfra:
         d = self._call(self.r.describe)
         self._axes = {a: list(v) for a, v in d.axes.items()}
         rs = d.research
+        self._verdicts = rs.verdict_block is not None     # fit -> validation -> final campaigns have none
         by_id = {e.id: self._client(e) for e in self._bank()}
         return Description(api_version=d.api_version, campaign=d.campaign, symbol=d.symbol, axes=self._axes,
                            objective=rs.metric, k_max=rs.k_max, reference=[by_id[i] for i, _ in rs.reference],
@@ -61,7 +62,19 @@ class FutsInfra:
                            universe=rs.universe, labels=list(rs.labels), fit_label=d.scoring_horizon,
                            notes={a: dict(v) for a, v in rs.notes.items()}, feature_set_defs=dict(rs.feature_set_defs),
                            served=[dict(x) for x in getattr(rs, "served", ())],   # 1.0 infra has no `served`
-                           report=getattr(rs, "report_block", None) is not None)
+                           report=getattr(rs, "report_block", None) is not None,
+                           options=self._options(d.recipe_schema))
+
+    def _options(self, schema):
+        """{arch: {option: values}} from the grammar's recipe schema, one `$defs` entry per arch (reading
+        only top-level `properties` found none, so SC full6/full7 never offered a variant)."""
+        out = {}
+        for d in schema.get("$defs", {}).values():
+            p = d.get("properties", {})
+            opts = {k: list(v["enum"]) for k, v in p.items() if k not in self._axes and "enum" in v}
+            if opts and "const" in p.get("arch", {}):
+                out[p["arch"]["const"]] = opts
+        return out
 
     def budget(self):
         b = self._call(self.r.budget)
@@ -168,6 +181,8 @@ class FutsInfra:
         return [Scored(value=np.nan if s.value is None else s.value, daily=dict(s.daily)) for s in res.scores]
 
     def verdict(self, subject, compare_to):
+        if not self._verdicts:
+            return "not_scored"
         return self._call(self.r.verdict, self._legs(subject), compare_to=self._legs(compare_to)).verdict
 
     def test_report(self, subject, compare_to=None):

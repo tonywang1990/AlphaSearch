@@ -4,6 +4,7 @@ only `infra/futs.py` (the real adapter) and `infra/fake.py` (tests, dry runs) im
 
 Nothing here carries a row or a timestamp: search-tier data is per-unit sums (`Moments`),
 test days come back as a `Verdict` word, and oos is reachable only through `evaluate`."""
+import json
 from dataclasses import dataclass, field
 from typing import Literal, Protocol
 
@@ -41,6 +42,7 @@ class Description:
     feature_set_defs: dict = field(default_factory=dict)             # how each feature set is composed
     served: list[dict] = field(default_factory=list)  # what prod serves per slot this week (cross-symbol memory)
     report: bool = False              # a strictly held-out test block `test_report` reads (API 1.1)
+    options: dict[str, dict[str, list]] = field(default_factory=dict)   # arch -> its approved trainer options -> values
 
 
 @dataclass(frozen=True)
@@ -123,6 +125,22 @@ def check_version(d: Description):
         raise ApiError("not_permitted", f"infra speaks {d.api_version}; this client {API_VERSIONS}")
 
 
-def name_of(recipe: dict[str, str], axes: dict[str, list[str]]) -> str:
-    """The recipe's name: its axis values in the grammar's axis order."""
-    return ".".join(str(recipe[a]) for a in axes if a in recipe)
+def name_of(recipe: dict, axes: dict[str, list[str]]) -> str:
+    """The recipe's name: its axis values in the grammar's axis order, then any trainer options it sets,
+    `@key=value,...` sorted (a variant of a recipe is another model: gru.10s....x1@L=16,hidden=128)."""
+    base = ".".join(str(recipe[a]) for a in axes if a in recipe)
+    opts = sorted((k, v) for k, v in recipe.items() if k not in axes and v is not None)
+    return base + ("@" + ",".join(f"{k}={v}" for k, v in opts) if opts else "")
+
+
+def split_name(name: str) -> tuple[str, dict]:
+    """name -> (the recipe's axis name, its trainer options with JSON values)."""
+    base, _, tail = name.partition("@")
+    opts = {}
+    for item in filter(None, tail.split(",")):
+        k, _, v = item.partition("=")
+        try:
+            opts[k] = json.loads(v)
+        except ValueError:
+            opts[k] = v
+    return base, opts
