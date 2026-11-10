@@ -28,6 +28,8 @@ from alphasearch.runtime.log import Log
 PHASES = ("observe", "workspace", "plan", "act", "evaluate", "reflect", "record")
 
 
+FINISH_MARGIN_S = 15 * 60          # finishing training ends this long before the deadline (scoring after it)
+
 def _setup(infra, cfg, out, desc, log, journal):
     """(the memory.md path or None, what outlives a round)."""
     if not os.path.exists(os.path.join(out, "agent.md")):              # the campaign's brief, frozen
@@ -73,6 +75,36 @@ def _stopped(out, rounds, why, log):
     """Why a live campaign ended before its round cap: the agent, a plateau, the deadline or the budget."""
     log("stop", f"after {rounds} round(s): {why}")
     json.dump({"rounds": rounds, "reason": why}, open(os.path.join(out, "stop.json"), "w"))
+
+
+def _finish(infra, cfg, desc, out, journal, log):
+    """Finishing (`cfg.finish_seeds`, e.g. "x4"): the last F's members retrained with averaged seeds in the time the
+    search left before the deadline, F re-weighted on those twins, and both judged on the val days (credibility).
+    Prod is a seed-averaged, distilled ensemble; the search trains one seed, so a pick is judged as it would ship."""
+    path = os.path.join(out, "finish.json")
+    if not cfg.finish_seeds or desc.universe or not journal.iters or os.path.exists(path):
+        return
+    F = journal.iters[-1]["F_after"]
+    if not F:
+        return
+    coords = {m.name: m.recipe for m in infra.models()}
+    twin = {n: name_of({**coords[n], "n_seeds": cfg.finish_seeds}, desc.axes) for n in F}
+    b = infra.budget()
+    try:
+        _, failed = infra.train([{**coords[n], "n_seeds": cfg.finish_seeds} for n in F],
+                                until=b.deadline - FINISH_MARGIN_S if b.deadline else None)
+    except ApiError as e:
+        failed = {"*": f"{e.code}: {e.message}"}
+    desc = infra.describe()
+    sel = rnd.selector(infra, desc, cfg)
+    start = list(desc.reference) if cfg.reference_in_bank else []
+    done = [twin[n] if twin[n] in sel.val.idx else n for n in F]
+    rep = {"F": sel.legs(sel.ix(F)), "F_val": sel.scorer()(sel.ix(F)), "F_credibility": sel.credibility(F, start),
+           "finished": sel.legs(sel.ix(done)), "finished_val": sel.scorer()(sel.ix(done)),
+           "finished_credibility": sel.credibility(done, start), "twins": twin, "failed": failed}
+    json.dump(rep, open(path, "w"), indent=1, default=float)
+    log("finish", f"F val {rep['F_val']:.4f} -> finished {rep['finished_val']:.4f}; credible "
+                  f"{(rep['finished_credibility'] or {}).get('credible')}; {len(failed)} failed")
 
 
 def _final(infra, cfg, desc, out, journal, log):
@@ -143,6 +175,7 @@ def run(infra, cfg, out):
         if why:                                        # a benchmark's budget is fixed: unused is lost
             _stopped(out, it + 1, why, log)
             break
+    _finish(infra, cfg, desc, out, journal, log)
     if journal.iters and not os.path.exists(os.path.join(out, "episode.json")):
         sel = rnd.selector(infra, desc, cfg)
         F = journal.iters[-1]["F_after"]

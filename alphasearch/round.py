@@ -57,7 +57,9 @@ class Observation:
     def refresh_recipes(self):
         """The legal untrained recipes (again, after a feature set grew the grammar)."""
         self.desc = self.infra.describe()
-        self.untrained = {n: r for r in self.infra.recipes() if (n := name_of(r, self.desc.axes)) not in self.failed}
+        seeds = self.cfg.search_seeds            # finishing's seeds (x4) are not the search's
+        self.untrained = {n: r for r in self.infra.recipes()
+                          if (n := name_of(r, self.desc.axes)) not in self.failed and r.get("n_seeds", seeds) == seeds}
 
 
 @functools.lru_cache(maxsize=4)

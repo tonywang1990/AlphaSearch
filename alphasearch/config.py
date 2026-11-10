@@ -39,6 +39,8 @@ class Config:
     plateau_rounds: int = 2                # rounds a plateau is judged over
     plateau_gain: float = 0.002            # less val gain than this over them, and no better verdict = plateau
     final_reserve_min: float = 45          # minutes kept before the deadline for the final pick and report
+    search_seeds: str = "x1"               # the n_seeds value the search trains (Tony: seeds stabilize a pick)
+    finish_seeds: str | None = None        # e.g. "x4": the last F's members retrained so (finish.json)
     final_auto: bool = True                # the last F goes to infra's final gate; False: the owner decides
     model_minutes: float = 40              # a model's cost before this campaign has measured one (SC: 35-40)
     reveal_all: bool = False               # a universe benchmark: every pre-fitted member is in the bank at start

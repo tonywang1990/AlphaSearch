@@ -268,3 +268,19 @@ def test_select_label_and_the_veto_label_shape_the_pick(tmp_path):
     strict = selector(infra, desc, Config(select_label="30s", veto_label="10s", veto_min=1e9))
     assert strict.select([]) == []
 
+
+
+def test_finishing_retrains_F_with_averaged_seeds_and_judges_both_on_val(tmp_path):
+    """finish_seeds: after the last round F's members are retrained as their seed-averaged twins (prod's legs average
+    4 seeds; the search trains one), F is re-weighted on them, and both carry credibility in finish.json."""
+    infra = FakeInfra(seed=4, seeds=("x1", "x4"))
+    out = tmp_path / "f"
+    campaign.run(infra, Config(policy="surrogate", rounds=2, models=4, finish_seeds="x4"), str(out))
+    trained = [json.loads(x) for x in open(out / "iters.jsonl")]
+    assert all(n.endswith(".x1") for r in trained for n in r["trained"])           # the search trains one seed
+    rep = json.load(open(out / "finish.json"))
+    F = [n for n, _ in rep["F"]]
+    assert F and set(rep["twins"]) == set(F) and not rep["failed"]
+    assert {m.name for m in infra.models()} >= set(rep["twins"].values())
+    assert [n for n, _ in rep["finished"]] == [rep["twins"][n] for n in F]
+    assert {"credible", "why", "crossfit_t"} <= set(rep["finished_credibility"])
