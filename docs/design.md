@@ -79,7 +79,7 @@ alphasearch/
   ensemble/       moments, the fixed search, diagnosis: pure numpy
   search/         the surrogate, Thompson draws, effects: pure
   infra/          contract.py (the v1 seam), futs.py (the only futs-infra import), fake.py (tests)
-  prompts/        agent.md: brief v15
+  prompts/        agent.md: the brief v16 (what to do, not how: the goal, what is sealed, the actions, tools, workspace, reply)
 ```
 
 `ensemble/`, `search/` and `runtime/` know nothing of the harness; tools and context read a round,
@@ -106,7 +106,20 @@ commit what changed and why.
 
 - **Kept**: the frontier search (fill + gated swaps from prod over the whole bank), `ic_drift`
   selection, the best-swap surrogate, the agent's ensemble at t >= 2, the whole-bank view, the
-  experience store and carry, brief v15, the tool set, the sandbox, the transcript audit.
+  experience store and carry, the tool set, the sandbox, the transcript audit.
+- **Added** (2026-11-07): `Selector.credibility`, in `state.json` and each round row: from the val days alone,
+  the whole selection run on each alternate-day half and its gain over prod paired on the other half (cross-fit
+  t), F's gain in the earlier and later half of each period's days, and F per period. `credible` needs cross-fit
+  t >= `gate_t` (3), a gain in both time halves and no period below `period_floor` (1.0): only a credible F goes to
+  a final. Why (SC full7's IC@60 pick): val +7.8% (t 2.3, storm +17%, calm +0.5%), interleaved test +2.2%, final
+  days -3.0%. The floor is the gate's, not the search's (inside the fill no first member beats prod everywhere).
+  `crossval` and credibility score a held-out half without the veto (with one, every full6 fold was NaN);
+  `Config.weight_ridge` ridges the IC weights.
+- **Three stages** (2026-11-07): campaigns register fit -> validation (every eval day) -> final (`register
+  --no-test`, futs #517); with no verdict tier the adapter answers `not_scored` itself. 20 val days a period
+  instead of 10 roughly halve the selection noise; credibility is the gate before the one-shot final.
+- **Changed**: the brief (v16, 2026-11-04) states the job and the instruments only; v15's measured
+  playbooks (budget splits, predictor duties, diversity rules) were removed so the agent finds its own way.
 - **Changed**: the val rows and store frames are not in the sandbox (`pcorr`/`screen` are infra
   calls; 452's v15 agents never read them); test numbers are infra verdict words; the cross-symbol
   memory is rendered from what prod serves each week instead of a hand-written file.

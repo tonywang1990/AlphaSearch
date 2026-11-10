@@ -21,7 +21,7 @@ def _seed(*parts):
 
 
 class FakeInfra:
-    def __init__(self, seed=0, factors=8, ticks=120, verdicts=40, k_max=6, verdict_t=2.0):
+    def __init__(self, seed=0, factors=8, ticks=120, verdicts=40, k_max=6, verdict_t=2.0, seeds=()):
         self.rng, self.F, self.k_max, self.verdict_t = np.random.default_rng(seed), factors, k_max, verdict_t
         self.seed, self.verdicts_left = seed, verdicts
         days = max(r.stop for r in BLOCKS.values())
@@ -37,11 +37,13 @@ class FakeInfra:
         self.columns = [f"x{i}" for i in range(factors)] + [f"noise{i}" for i in range(12)]
         self.store = np.hstack([self.X, self.rng.standard_normal((len(self.unit), 12))])
         self.feature_sets = {"agg_a": self.columns[:4], "agg_b": self.columns[4:8], "book": self.columns[2:6]}
-        self.axes = {a: list(v) for a, v in AXES.items()}
+        self.axes = {a: list(v) for a, v in AXES.items()} | ({"n_seeds": list(seeds)} if seeds else {})   # finishing
         self.preds, self.trained, self.failed = {}, {}, {}
         ref = [{"arch": "tree", "horizon": "30s", "target": "ret", "feature_set": "agg_a"},
                {"arch": "linear", "horizon": "10s", "target": "ret", "feature_set": "agg_b"}]
-        self.train(ref)
+        ref = [r | ({"n_seeds": seeds[0]} if seeds else {}) for r in ref]
+        _, failed = self.train(ref)
+        assert not failed, failed
         self.reference = [name_of(r, self.axes) for r in ref]
 
     # -- the grammar ----------------------------------------------------------------------
@@ -93,7 +95,7 @@ class FakeInfra:
                 a[int(c[1:])] += 0.8
         return a
 
-    def train(self, recipes):
+    def train(self, recipes, until=None):
         ready, failed = [], {}
         for r in recipes:
             n = name_of(r, self.axes)

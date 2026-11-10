@@ -12,12 +12,15 @@ import numpy as np
 def set_score(m, idx, w, labels=None):
     """A set's val score from moments.npz `m`: per period the blend's IC, w.c/sqrt(w'Sw), averaged
     over `labels` (default: the ones selection uses), as a ratio to the prod reference's, then
-    averaged over periods. `w` None: the fit block's weights, S_fit^-1 c_fit (what F uses)."""
+    averaged over periods. `w` None: the fit block's weights, (S_fit + ridge diag S_fit)^-1 c_fit (what F uses)."""
     L = [list(m["labels"]).index(x) for x in labels] if labels else list(m["select_labels"])
-    idx = np.asarray(idx)
+    idx = np.asarray(idx, dtype=int)
+    if not len(idx):                # an empty F (prod kept out of the bank, nothing trained yet)
+        return float("nan")
     if w is None:
         cf = m["c_fit"][L].mean(0)[idx]
-        w = np.linalg.solve(m["S_fit"][np.ix_(idx, idx)], cf)
+        S = m["S_fit"][np.ix_(idx, idx)]
+        w = np.linalg.solve(S + float(m["weight_ridge"]) * np.diag(np.diag(S)), cf)
 
     def ic(p, jj, ww):            # NaN where S is not positive definite (the selection's guard)
         sub = m["S_val"][p][np.ix_(jj, jj)]
@@ -54,7 +57,7 @@ def write(R, ws, seen):
              periods=np.array(sel.val.m.periods), select_labels=np.array(sl), c_val=c_val.astype(np.float32),
              S_val=S_val.astype(np.float32), c_fit=c_fit.astype(np.float32), S_fit=S_fit.astype(np.float32),
              F_idx=np.array(Fj, int), F_w=Fw, ref_idx=np.array([i for i, _ in ref], int),
-             ref_w=np.array([w for _, w in ref], float))
+             ref_w=np.array([w for _, w in ref], float), weight_ridge=sel.cfg.weight_ridge)
     # pooled over val periods in the selection labels: F's prediction and each model against it
     cP, SP = np.nanmean(c_val[sl].mean(0), axis=0), S_val.mean(0)
     vF = float(Fw @ SP[np.ix_(Fj, Fj)] @ Fw)

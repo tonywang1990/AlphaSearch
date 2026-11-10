@@ -104,6 +104,15 @@ class Stats:
                 out.append((k, c, S, self.ref_ic(c, S)))
         return out
 
+    def time_halves(self):
+        """Each period's days split in date order: (earlier half, later half) day-count vectors."""
+        h = [np.zeros(len(self.days)), np.zeros(len(self.days))]
+        for k in np.unique(self.period):
+            d = np.flatnonzero(self.period == k)
+            d = d[np.argsort(self.days[d], kind="stable")]
+            h[0][d[:len(d) // 2]], h[1][d[len(d) // 2:]] = 1.0, 1.0
+        return h
+
     def halves(self):
         """Alternate days within each period: two day-count vectors."""
         h = [np.zeros(len(self.days)), np.zeros(len(self.days))]
@@ -113,10 +122,14 @@ class Stats:
         return h
 
 
+def periods(per, jj, w):
+    """The blend's IC ratio to the reference in each period."""
+    return [ic(c, S, jj, w) / r for _, c, S, r in per]
+
+
 def score(per, jj, w):
     """The period-mean IC ratio of the blend to the reference."""
-    vals = [ic(c, S, jj, w) / r for _, c, S, r in per]
-    vals = [v for v in vals if np.isfinite(v)]
+    vals = [v for v in periods(per, jj, w) if np.isfinite(v)]
     return float(np.mean(vals)) if vals else float("nan")
 
 

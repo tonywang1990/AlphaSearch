@@ -16,6 +16,7 @@ from dataclasses import asdict
 
 import numpy as np
 
+from alphasearch import pacing
 from alphasearch import round as rnd
 from alphasearch.context import experience, memory, workspace
 from alphasearch.ensemble.diagnose import diagnose
@@ -26,6 +27,8 @@ from alphasearch.runtime.log import Log
 
 PHASES = ("observe", "workspace", "plan", "act", "evaluate", "reflect", "record")
 
+
+FINISH_MARGIN_S = 15 * 60          # finishing training ends this long before the deadline (scoring after it)
 
 def _setup(infra, cfg, out, desc, log, journal):
     """(the memory.md path or None, what outlives a round)."""
@@ -68,6 +71,62 @@ def _eval_report(infra, desc, cfg, out, legs, log):
     return rep
 
 
+def _stopped(out, rounds, why, log):
+    """Why a live campaign ended before its round cap: the agent, a plateau, the deadline or the budget."""
+    log("stop", f"after {rounds} round(s): {why}")
+    json.dump({"rounds": rounds, "reason": why}, open(os.path.join(out, "stop.json"), "w"))
+
+
+def _finish(infra, cfg, desc, out, journal, log):
+    """Finishing (`cfg.finish_seeds`, e.g. "x4"): the last F's members retrained with averaged seeds in the time the
+    search left before the deadline, F re-weighted on those twins, and both judged on the val days (credibility).
+    Prod is a seed-averaged, distilled ensemble; the search trains one seed, so a pick is judged as it would ship."""
+    path = os.path.join(out, "finish.json")
+    if not cfg.finish_seeds or desc.universe or not journal.iters or os.path.exists(path):
+        return
+    F = journal.iters[-1]["F_after"]
+    if not F:
+        return
+    coords = {m.name: m.recipe for m in infra.models()}
+    twin = {n: name_of({**coords[n], "n_seeds": cfg.finish_seeds}, desc.axes) for n in F}
+    b = infra.budget()
+    try:
+        _, failed = infra.train([{**coords[n], "n_seeds": cfg.finish_seeds} for n in F],
+                                until=b.deadline - FINISH_MARGIN_S if b.deadline else None)
+    except ApiError as e:
+        failed = {"*": f"{e.code}: {e.message}"}
+    desc = infra.describe()
+    sel = rnd.selector(infra, desc, cfg)
+    start = list(desc.reference) if cfg.reference_in_bank else []
+    done = [twin[n] if twin[n] in sel.val.idx else n for n in F]
+    rep = {"F": sel.legs(sel.ix(F)), "F_val": sel.scorer()(sel.ix(F)), "F_credibility": sel.credibility(F, start),
+           "finished": sel.legs(sel.ix(done)), "finished_val": sel.scorer()(sel.ix(done)),
+           "finished_credibility": sel.credibility(done, start), "twins": twin, "failed": failed}
+    json.dump(rep, open(path, "w"), indent=1, default=float)
+    log("finish", f"F val {rep['F_val']:.4f} -> finished {rep['finished_val']:.4f}; credible "
+                  f"{(rep['finished_credibility'] or {}).get('credible')}; {len(failed)} failed")
+
+
+def _final(infra, cfg, desc, out, journal, log):
+    """Infra's final gate on the last round's F, once, when the campaign registered one (a live campaign's
+    reserve is held out of the search budget, and its deadline leaves the time)."""
+    path = os.path.join(out, "final.json")
+    if desc.universe or not journal.iters or os.path.exists(path) or not infra.budget().final_reserve:
+        return
+    if not cfg.final_auto:                     # the final frame is one-shot: the owner spends it
+        log("final", "held for the owner (final_auto=False)")
+        return
+    legs = [(n, w) for n, w in journal.iters[-1]["F_after_legs"]]
+    try:
+        rep = infra.final(legs)
+    except ApiError as e:
+        rep = {"error": f"{e.code}: {e.message}"}
+    rep["legs"] = legs
+    json.dump(rep, open(path, "w"), indent=1, default=str)
+    verdicts = {k: v.get("verdict") for k, v in (rep.get("evaluate") or {}).get("verdicts", {}).items()}
+    log("final", f"{verdicts or rep.get('error')}; build {'done' if rep.get('build') else 'not run'}")
+
+
 def run(infra, cfg, out):
     desc = infra.describe()
     check_version(desc)
@@ -79,18 +138,31 @@ def run(infra, cfg, out):
     for it in range(len(journal.iters), cfg.rounds):
         t0 = time.time()
         laps = [t0]                                     # each phase's end, for the session viewer
-        start = desc.reference if cfg.frontier or not journal.iters else journal.iters[-1]["F_after"]
+        b = None if desc.universe else infra.budget()
+        n, paced, why = (cfg.models, {}, None) if desc.universe else pacing.pace(b, journal, cfg)
+        if why:
+            _stopped(out, it, why, log)
+            break
+        start = (desc.reference if cfg.reference_in_bank else []) if cfg.frontier or not journal.iters \
+            else journal.iters[-1]["F_after"]
         obs = rnd.observe(infra, desc, cfg, it, out, list(start), carry)
         laps.append(time.time())
         workspace.build(obs, journal=journal, budget={"iterations_left": cfg.rounds - it, "models_this_iteration":
-                                                      cfg.models}, lib=lib, memory=mem,
+                                                      n, **paced}, lib=lib, memory=mem,
                         diagnosis=diagnose(obs.sel, obs.F) if obs.sel.cfg.objective == "ic" else [])
         laps.append(time.time())
-        plan = policy.plan(obs, cfg.models, rng, log)
+        plan = policy.plan(obs, n, rng, log)
         laps.append(time.time())
-        a = rnd.act(obs, plan, policy, cfg.models, rng)
-        laps.append(time.time())
-        o, desc = rnd.evaluate(obs, plan, a, log)
+        try:
+            size = n if desc.universe or plan.train is None else max(0, min(n, plan.train))   # the agent's choice
+            a = rnd.act(obs, plan, policy, size, rng, until=None if desc.universe else pacing.train_until(b, cfg))
+            laps.append(time.time())
+            o, desc = rnd.evaluate(obs, plan, a, log)
+        except ApiError as e:                         # the deadline or the budget ran out mid-round: keep the last F
+            if e.code != "budget_exhausted":
+                raise
+            _stopped(out, it, f"budget or deadline reached during round {it}: {e.message}", log)
+            return out
         laps.append(time.time())
         tools = policy.reflect(obs, plan, lib, log)
         laps.append(time.time())
@@ -98,8 +170,12 @@ def run(infra, cfg, out):
         row = rnd.record(journal, obs, plan, a, o, tools, policy, log, time.time() - t0)
         laps.append(time.time())
         log("phases", str(it), **{p: round(b - a, 1) for p, a, b in zip(PHASES, laps[:-1], laps[1:], strict=True)})
-        if row["stop"] and not desc.universe:          # benchmark: the budget is fixed, unused is lost
+        why = None if desc.universe else ("agent: no experiment it can design will raise F" if row["stop"]
+                                          else pacing.plateau(journal, cfg))
+        if why:                                        # a benchmark's budget is fixed: unused is lost
+            _stopped(out, it + 1, why, log)
             break
+    _finish(infra, cfg, desc, out, journal, log)
     if journal.iters and not os.path.exists(os.path.join(out, "episode.json")):
         sel = rnd.selector(infra, desc, cfg)
         F = journal.iters[-1]["F_after"]
@@ -110,4 +186,5 @@ def run(infra, cfg, out):
                                eval_report=ev)
         if cfg.experience:
             experience.add(cfg.experience, ep)
+    _final(infra, cfg, desc, out, journal, log)
     return out
